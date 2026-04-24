@@ -1,0 +1,15 @@
+# Obsidian Git Plugin
+
+# Dependencies
+node_modules/
+
+# Build output (committed to allow direct installation)
+# main.js is committed for plugin users
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Development artifacts
+*.log
+.DS_Store
+Thumbs.db

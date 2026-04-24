@@ -1,0 +1,32 @@
+{
+  "name": "obsidian-git",
+  "version": "1.0.0",
+  "description": "Obsidian plugin to perform git operations on your vault",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "lint": "eslint src --ext .ts"
+  },
+  "keywords": [
+    "obsidian",
+    "git",
+    "plugin"
+  ],
+  "author": "MichaelLing83",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.0.0",
+    "obsidian": "latest",
+    "tslib": "^2.6.0",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "simple-git": "^3.32.3"
+  }
+}

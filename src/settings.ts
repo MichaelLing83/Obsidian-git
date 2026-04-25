@@ -13,7 +13,7 @@ export class ObsidianGitSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Obsidian Git Settings" });
+    containerEl.createEl("h2", { text: "Vault Git Sync Settings" });
 
     // ---- Remote configuration ----
     containerEl.createEl("h3", { text: "Remote Repository" });

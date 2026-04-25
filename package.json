@@ -1,7 +1,7 @@
 {
   "name": "obsidian-git",
   "version": "1.0.2",
-  "description": "Obsidian plugin to perform git operations on your vault",
+  "description": "Vault Git Sync plugin for Obsidian to perform git operations on your vault",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",

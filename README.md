@@ -1,4 +1,4 @@
-# Obsidian Git
+# Vault Git Sync
 
 An [Obsidian](https://obsidian.md) plugin that turns your vault into a git-managed repository.  
 Run `add`, `commit`, `push`, `fetch`, `pull`, and `rebase` directly from Obsidian, and configure your remote URL and authentication without ever touching the terminal.
@@ -48,7 +48,7 @@ Copy `main.js` and `manifest.json` to `.obsidian/plugins/obsidian-git/` and enab
 
 ## Configuration
 
-Open **Settings → Obsidian Git** to configure the plugin.
+Open **Settings → Vault Git Sync** to configure the plugin.
 
 ### Remote Repository
 

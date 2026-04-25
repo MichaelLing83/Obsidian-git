@@ -61,6 +61,21 @@ export class GitManager {
     password: this.settings.authToken,
   });
 
+  private async getHttpClient(): Promise<any> {
+    if (Platform.isMobile) {
+      return http;
+    }
+
+    // Desktop should use node transport; web transport can fail in Electron's
+    // plugin runtime depending on fetch/CORS behavior.
+    try {
+      const nodeHttpModule = await import("isomorphic-git/http/node");
+      return (nodeHttpModule as any)?.default ?? nodeHttpModule;
+    } catch {
+      return http;
+    }
+  }
+
   private get fs(): any {
     return this.fsClient;
   }
@@ -112,9 +127,10 @@ export class GitManager {
 
   async push(force = false): Promise<void> {
     const { remoteName, branch } = this.settings;
+    const httpClient = await this.getHttpClient();
     await git.push({
       fs: this.fs,
-      http,
+      http: httpClient,
       dir: this.vaultPath,
       remote: remoteName,
       remoteRef: branch,
@@ -125,9 +141,10 @@ export class GitManager {
 
   async fetch(): Promise<void> {
     const { remoteName, branch } = this.settings;
+    const httpClient = await this.getHttpClient();
     await git.fetch({
       fs: this.fs,
-      http,
+      http: httpClient,
       dir: this.vaultPath,
       remote: remoteName,
       remoteRef: branch,

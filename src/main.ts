@@ -1,7 +1,14 @@
 import { Notice, Platform, Plugin, moment } from "obsidian";
+import { Buffer as BufferPolyfill } from "buffer";
 import { GitManager } from "./gitManager";
 import { ObsidianGitSettingTab } from "./settings";
 import { DEFAULT_SETTINGS, ObsidianGitSettings } from "./types";
+
+// Android WebView may not expose a global Buffer symbol, but isomorphic-git
+// and its internals rely on it in multiple code paths (pack/index handling).
+if (typeof (globalThis as any).Buffer === "undefined") {
+  (globalThis as any).Buffer = BufferPolyfill;
+}
 
 export default class ObsidianGitPlugin extends Plugin {
   settings: ObsidianGitSettings;

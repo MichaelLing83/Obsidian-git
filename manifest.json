@@ -1,5 +1,5 @@
 {
-  "id": "obsidian-git",
+  "id": "vault-git-sync",
   "name": "Vault Git Sync",
   "version": "1.0.2",
   "minAppVersion": "1.4.0",

@@ -71,13 +71,13 @@ git push origin "$BRANCH"
 git push origin "$NEW_VERSION"
 
 # ── create zip for manual / Android install ────────────────────────────────
-ZIP_NAME="obsidian-git-${NEW_VERSION}.zip"
+ZIP_NAME="vault-git-sync-${NEW_VERSION}.zip"
 info "Creating $ZIP_NAME for manual installation..."
 # Build a folder inside the zip so the user can unzip directly into .obsidian/plugins/
 TMP_DIR=$(mktemp -d)
-mkdir -p "$TMP_DIR/obsidian-git"
-cp main.js manifest.json "$TMP_DIR/obsidian-git/"
-(cd "$TMP_DIR" && zip -r - obsidian-git) > "$ZIP_NAME"
+mkdir -p "$TMP_DIR/vault-git-sync"
+cp main.js manifest.json "$TMP_DIR/vault-git-sync/"
+(cd "$TMP_DIR" && zip -r - vault-git-sync) > "$ZIP_NAME"
 rm -rf "$TMP_DIR"
 
 # ── create GitHub Release ───────────────────────────────────────────────────
@@ -91,9 +91,9 @@ gh release create "$NEW_VERSION" \
 
 ## Manual installation (Android / iOS / Desktop)
 1. Download \`${ZIP_NAME}\`
-2. Extract it — you will get an \`obsidian-git/\` folder
+2. Extract it — you will get an \`vault-git-sync/\` folder
 3. Move that folder into your vault's \`.obsidian/plugins/\` directory
-4. In Obsidian → Settings → Community plugins, enable **Obsidian Git**" \
+4. In Obsidian → Settings → Community plugins, enable **Vault Git Sync**" \
   --latest
 rm -f "$ZIP_NAME"
 
@@ -102,6 +102,6 @@ echo ""
 echo "Next steps to publish to the Obsidian community plugin list:"
 echo "  1. Fork https://github.com/obsidianmd/obsidian-releases"
 echo "  2. Add your plugin to community-plugins.json:"
-echo '     { "id": "obsidian-git", "name": "Obsidian Git", "author": "MichaelLing83",'
+echo '     { "id": "vault-git-sync", "name": "Vault Git Sync", "author": "MichaelLing83",'
 echo '       "description": "Perform git operations on your vault.", "repo": "MichaelLing83/Obsidian-git" }'
 echo "  3. Submit a Pull Request to obsidianmd/obsidian-releases"

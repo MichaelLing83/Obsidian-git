@@ -29,7 +29,7 @@ npm run dev
 To test the plugin locally, copy the output files to your vault's plugin directory:
 
 ```bash
-cp main.js manifest.json ~/path/to/vault/.obsidian/plugins/obsidian-git/
+cp main.js manifest.json ~/path/to/vault/.obsidian/plugins/vault-git-sync/
 ```
 
 Then reload Obsidian (Ctrl/Cmd + R or disable/enable the plugin in Settings).
@@ -81,8 +81,8 @@ This is a one-time process done after the plugin is ready for public release.
 
 ```json
 {
-  "id": "obsidian-git",
-  "name": "Obsidian Git",
+  "id": "vault-git-sync",
+  "name": "Vault Git Sync",
   "author": "MichaelLing83",
   "description": "Perform git operations (add, commit, push, fetch, pull, rebase) on your vault and configure remote repository settings.",
   "repo": "MichaelLing83/Obsidian-git"

@@ -1,5 +1,5 @@
 {
-  "name": "obsidian-git",
+  "name": "vault-git-sync",
   "version": "1.0.2",
   "description": "Vault Git Sync plugin for Obsidian to perform git operations on your vault",
   "main": "main.js",

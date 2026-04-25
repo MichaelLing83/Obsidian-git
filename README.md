@@ -30,7 +30,7 @@ Run `add`, `commit`, `push`, `fetch`, `pull`, and `rebase` directly from Obsidia
 ### Manual installation
 
 1. Download `main.js`, `manifest.json`, and `styles.css` (if present) from the [latest release](../../releases/latest).
-2. Copy the files into `.obsidian/plugins/obsidian-git/` inside your vault.
+2. Copy the files into `.obsidian/plugins/vault-git-sync/` inside your vault.
 3. Enable the plugin in **Settings → Community plugins**.
 
 ### Building from source
@@ -42,7 +42,7 @@ npm install
 npm run build        # produces main.js
 ```
 
-Copy `main.js` and `manifest.json` to `.obsidian/plugins/obsidian-git/` and enable the plugin.
+Copy `main.js` and `manifest.json` to `.obsidian/plugins/vault-git-sync/` and enable the plugin.
 
 ---
 

@@ -62,18 +62,9 @@ export class GitManager {
   });
 
   private async getHttpClient(): Promise<any> {
-    if (Platform.isMobile) {
-      return http;
-    }
-
-    // Desktop should use node transport; web transport can fail in Electron's
-    // plugin runtime depending on fetch/CORS behavior.
-    try {
-      const nodeHttpModule = await import("isomorphic-git/http/node");
-      return (nodeHttpModule as any)?.default ?? nodeHttpModule;
-    } catch {
-      return http;
-    }
+    // Use web transport everywhere to keep a single browser-compatible runtime
+    // bundle that works on desktop and mobile.
+    return http;
   }
 
   private get fs(): any {

@@ -1,4 +1,4 @@
-import { Notice, Plugin, moment } from "obsidian";
+import { Notice, Platform, Plugin, moment } from "obsidian";
 import { GitManager } from "./gitManager";
 import { ObsidianGitSettingTab } from "./settings";
 import { DEFAULT_SETTINGS, ObsidianGitSettings } from "./types";
@@ -20,7 +20,12 @@ export default class ObsidianGitPlugin extends Plugin {
     await this.loadSettings();
 
     const adapter = this.app.vault.adapter;
-    const vaultPath = (adapter as any).getBasePath?.() ?? (adapter as any).basePath ?? "";
+    // On mobile, DataAdapter uses vault-relative paths so dir must be "".
+    // getBasePath() is desktop-only; using an absolute path on mobile would
+    // break ObsidianFsAdapter which expects paths relative to vault root.
+    const vaultPath = Platform.isMobile
+      ? ""
+      : ((adapter as any).getBasePath?.() ?? (adapter as any).basePath ?? "");
     this.gitManager = new GitManager(vaultPath, this.settings, adapter);
 
     this.addSettingTab(new ObsidianGitSettingTab(this.app, this));
@@ -393,6 +398,24 @@ export default class ObsidianGitPlugin extends Plugin {
   private async syncWithRemote(): Promise<void> {
     // Unified sync flow for desktop and mobile:
     // 1) commit local changes, 2) fetch, 3) pull, 4) conflict check, 5) push.
+
+    // On first-time mobile setup (or after git init without commits) the repo
+    // has no local HEAD.  Bootstrap from remote automatically so the user
+    // doesn't have to run "Force sync" manually.
+    const hasHead = await this.gitManager.isGitRepository();
+    if (!hasHead) {
+      if (!this.settings.remoteUrl) {
+        throw new Error(
+          "No local git repository found and no remote URL configured.\n" +
+            "Set the remote URL in settings, then sync again."
+        );
+      }
+      new Notice("Git: No local commits found. Fetching from remote to set up repository…");
+      await this.gitManager.forceSyncFromRemote();
+      new Notice("Git: Repository initialized from remote. Future syncs will use the normal flow.");
+      return;
+    }
+
     try {
       const before = await this.gitManager.status();
       const hasLocalChanges =

@@ -146,6 +146,26 @@ export class GitManager {
   async pull(): Promise<void> {
     const { remoteName, branch } = this.settings;
     await this.fetch();
+
+    // If the local branch doesn't exist yet (empty repo after init, or after
+    // forceSyncFromRemote set up the remote tracking ref but no local branch
+    // was created), do a checkout rather than a merge.
+    let localBranchExists = false;
+    try {
+      await git.resolveRef({ fs: this.fs, dir: this.vaultPath, ref: `refs/heads/${branch}` });
+      localBranchExists = true;
+    } catch {
+      // branch doesn't exist yet
+    }
+
+    if (!localBranchExists) {
+      const remoteRef = `refs/remotes/${remoteName}/${branch}`;
+      const sha = await git.resolveRef({ fs: this.fs, dir: this.vaultPath, ref: remoteRef });
+      await git.writeRef({ fs: this.fs, dir: this.vaultPath, ref: `refs/heads/${branch}`, value: sha, force: true });
+      await git.checkout({ fs: this.fs, dir: this.vaultPath, ref: branch, force: true });
+      return;
+    }
+
     await git.merge({
       fs: this.fs,
       dir: this.vaultPath,

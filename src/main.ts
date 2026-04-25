@@ -19,8 +19,9 @@ export default class ObsidianGitPlugin extends Plugin {
   async onload(): Promise<void> {
     await this.loadSettings();
 
-    const vaultPath = (this.app.vault.adapter as any).getBasePath?.() ?? "";
-    this.gitManager = new GitManager(vaultPath, this.settings);
+    const adapter = this.app.vault.adapter;
+    const vaultPath = (adapter as any).getBasePath?.() ?? (adapter as any).basePath ?? "";
+    this.gitManager = new GitManager(vaultPath, this.settings, adapter);
 
     this.addSettingTab(new ObsidianGitSettingTab(this.app, this));
 
@@ -390,6 +391,18 @@ export default class ObsidianGitPlugin extends Plugin {
   }
 
   private async syncWithRemote(): Promise<void> {
+    if (this.gitManager.isDesktop) {
+      await this.syncWithRemoteDesktop();
+    } else {
+      await this.syncWithRemoteMobile();
+    }
+  }
+
+  /**
+   * Desktop sync: stash → fetch → rebase → stash pop → commit → push.
+   * Uses stash so local in-progress work is preserved across the rebase.
+   */
+  private async syncWithRemoteDesktop(): Promise<void> {
     const before = await this.gitManager.status();
     const hadLocalChanges =
       before.modified.length > 0 ||
@@ -432,6 +445,45 @@ export default class ObsidianGitPlugin extends Plugin {
         const msg = this.buildCommitMessage();
         await this.gitManager.stageAllAndCommit(msg);
         new Notice(`Git sync: committed local changes — "${msg}"`);
+      }
+
+      await this.push();
+      new Notice("Git sync: complete.");
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      if (this.isConflictError(raw)) {
+        throw new Error(this.buildConflictHelp(raw));
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Mobile sync: commit local changes → fetch → merge → push.
+   * Stash and rebase are not available on mobile (isomorphic-git limitation).
+   */
+  private async syncWithRemoteMobile(): Promise<void> {
+    try {
+      const before = await this.gitManager.status();
+      const hasLocalChanges =
+        before.modified.length > 0 ||
+        before.not_added.length > 0 ||
+        before.deleted.length > 0 ||
+        before.renamed.length > 0 ||
+        before.staged.length > 0;
+
+      if (hasLocalChanges) {
+        const msg = this.buildCommitMessage();
+        await this.gitManager.stageAllAndCommit(msg);
+        new Notice(`Git sync: committed local changes — "${msg}"`);
+      }
+
+      await this.gitManager.fetch();
+      await this.gitManager.pull();
+
+      const after = await this.gitManager.status();
+      if (after.conflicted.length > 0) {
+        throw new Error(this.buildConflictHelp("Merge conflict detected after pull."));
       }
 
       await this.push();

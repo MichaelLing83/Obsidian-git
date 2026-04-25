@@ -27,6 +27,7 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
+    "isomorphic-git": "^1.37.5",
     "simple-git": "^3.32.3"
   }
 }

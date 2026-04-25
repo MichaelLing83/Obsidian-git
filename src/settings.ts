@@ -63,7 +63,7 @@ export class ObsidianGitSettingTab extends PluginSettingTab {
     containerEl.createEl("h3", { text: "Authentication" });
 
     containerEl.createEl("p", {
-      text: "For HTTPS remotes, provide a username and a personal access token (PAT) or password. For SSH remotes, leave these fields empty and rely on your system SSH agent/key.",
+      text: "For HTTPS remotes, provide a username and a personal access token (PAT) or password. SSH remotes are supported on desktop only — on mobile (iOS/Android), use HTTPS.",
       cls: "setting-item-description",
     });
 

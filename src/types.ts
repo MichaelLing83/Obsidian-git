@@ -1,3 +1,19 @@
+/**
+ * Normalised git status returned by both desktop (simple-git) and
+ * mobile (isomorphic-git) implementations.
+ */
+export interface GitStatus {
+  current: string | null;
+  ahead: number;
+  behind: number;
+  staged: string[];
+  modified: string[];
+  not_added: string[];
+  deleted: string[];
+  renamed: string[];
+  conflicted: string[];
+}
+
 /** Plugin settings interface */
 export interface ObsidianGitSettings {
   /** Remote repository URL (e.g. https://github.com/user/repo.git or git@github.com:user/repo.git) */

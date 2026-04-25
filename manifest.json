@@ -6,5 +6,5 @@
   "description": "Perform git operations (add, commit, push, fetch, pull, rebase) on your vault and configure remote repository settings.",
   "author": "MichaelLing83",
   "authorUrl": "https://github.com/MichaelLing83",
-  "isDesktopOnly": true
+  "isDesktopOnly": false
 }

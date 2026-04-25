@@ -19,8 +19,15 @@ import { DataAdapter, Platform } from "obsidian";
 import { ObsidianGitSettings, GitStatus } from "./types";
 import { ObsidianFsAdapter } from "./fsAdapter";
 
-// Desktop backend
-import simpleGit, { SimpleGit, SimpleGitOptions } from "simple-git";
+// Desktop backend types are intentionally loose to avoid a static import of
+// simple-git in mobile bundles.
+type SimpleGit = any;
+type SimpleGitOptions = {
+  baseDir: string;
+  binary: string;
+  maxConcurrentProcesses: number;
+  trimmed: boolean;
+};
 
 // Mobile backend
 import * as git from "isomorphic-git";
@@ -42,14 +49,13 @@ export class GitManager {
 
     if (Platform.isMobile && adapter) {
       this.isoFs = new ObsidianFsAdapter(adapter);
-    } else {
-      this.simpleGitInstance = this.createSimpleGit();
     }
   }
 
   updateSettings(settings: ObsidianGitSettings): void {
     this.settings = settings;
-    if (this.simpleGitInstance) {
+    if (!Platform.isMobile && this.simpleGitInstance) {
+      // Recreate after settings changes only if desktop instance is already in use.
       this.simpleGitInstance = this.createSimpleGit();
     }
   }
@@ -68,7 +74,23 @@ export class GitManager {
       maxConcurrentProcesses: 6,
       trimmed: false,
     };
-    return simpleGit(options);
+
+    // Load simple-git only on desktop at runtime so mobile doesn't attempt
+    // to load Node-specific dependencies while evaluating the plugin bundle.
+    const runtimeRequire =
+      (globalThis as any).require ??
+      (typeof require === "function" ? require : undefined) ??
+      (typeof module !== "undefined" && (module as any).require ? (module as any).require : undefined);
+    if (typeof runtimeRequire !== "function") {
+      throw new Error("simple-git runtime loader is unavailable in this environment.");
+    }
+
+    // Use a computed module name to avoid static bundling of simple-git into
+    // mobile builds while remaining compatible with desktop plugin runtime.
+    const simpleGitModuleName = ["simple", "-git"].join("");
+    const simpleGitModule = runtimeRequire(simpleGitModuleName);
+    const simpleGitFactory = simpleGitModule?.default ?? simpleGitModule;
+    return simpleGitFactory(options);
   }
 
   // ── Auth helpers ────────────────────────────────────────────────────────────
@@ -370,7 +392,12 @@ export class GitManager {
   // ── Private accessors ───────────────────────────────────────────────────────
 
   private get sg(): SimpleGit {
-    if (!this.simpleGitInstance) throw new Error("simple-git not available on mobile.");
+    if (Platform.isMobile) {
+      throw new Error("simple-git not available on mobile.");
+    }
+    if (!this.simpleGitInstance) {
+      this.simpleGitInstance = this.createSimpleGit();
+    }
     return this.simpleGitInstance;
   }
 

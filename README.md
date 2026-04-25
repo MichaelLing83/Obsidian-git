@@ -14,11 +14,13 @@ Run `add`, `commit`, `push`, `fetch`, `pull`, and `rebase` directly from Obsidia
 | **Stage & Commit** | Stage all changes and commit with a customisable message template |
 | **Push / Fetch / Pull** | Interact with any HTTPS or SSH remote |
 | **Rebase** | Rebase the current branch onto the configured remote branch |
+| **Git Sync** | One-click sync: fetch → rebase → commit local changes → push |
 | **Backup command** | One-click: stage all → commit → (pull →) push |
 | **Auto-commit** | Commit on a configurable schedule (1 – 120 minutes) |
 | **Remote configuration** | Set remote URL, name, and branch from the settings panel |
 | **Authentication** | Username + personal access token (PAT) for HTTPS remotes; SSH key via your system agent |
 | **Status bar** | Live display of branch, changed-file count, and ahead/behind counts |
+| **Ribbon button** | Left ribbon shortcut for Git Sync |
 
 ---
 
@@ -96,6 +98,7 @@ All commands are accessible via the **Command palette** (`Ctrl/Cmd + P`):
 | Command | Description |
 |---|---|
 | `Git: Stage all changes` | `git add -A` |
+| `Git: Sync with remote (fetch, rebase, commit, push)` | Fetch remote, rebase local branch, commit local changes, push |
 | `Git: Commit staged changes` | Commit with the message template |
 | `Git: Stage all and commit` | Stage + commit in one step |
 | `Git: Push to remote` | Push (optionally pulls first) |

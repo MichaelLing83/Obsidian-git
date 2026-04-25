@@ -159,6 +159,16 @@ export class GitManager {
     await this.git.rebase([`${remoteName}/${branch}`]);
   }
 
+  /** Stash local changes, including untracked files */
+  async stashPush(message: string): Promise<void> {
+    await this.git.raw(["stash", "push", "-u", "-m", message]);
+  }
+
+  /** Restore the latest stashed changes */
+  async stashPop(): Promise<void> {
+    await this.git.raw(["stash", "pop"]);
+  }
+
   /**
    * Configure (or update) the remote.
    * If the remote already exists it is updated via `set-url`;

@@ -8,6 +8,7 @@ export default class ObsidianGitPlugin extends Plugin {
   gitManager: GitManager;
 
   private statusBarItem: HTMLElement | null = null;
+  private syncRibbonEl: HTMLElement | null = null;
   private autoCommitIntervalId: number | null = null;
   private statusRefreshIntervalId: number | null = null;
 
@@ -24,6 +25,7 @@ export default class ObsidianGitPlugin extends Plugin {
     this.addSettingTab(new ObsidianGitSettingTab(this.app, this));
 
     this.registerCommands();
+    this.registerRibbon();
 
     if (this.settings.showStatusBar) {
       this.statusBarItem = this.addStatusBarItem();
@@ -60,6 +62,18 @@ export default class ObsidianGitPlugin extends Plugin {
   // -------------------------------------------------------------------------
 
   private registerCommands(): void {
+    // --- Sync (fetch + rebase + commit + push) ---
+    this.addCommand({
+      id: "git-sync",
+      name: "Sync with remote (fetch, rebase, commit, push)",
+      callback: async () => {
+        await this.runGitOp("Sync", async () => {
+          await this.syncWithRemote();
+          await this.refreshStatus();
+        });
+      },
+    });
+
     // --- Stage all ---
     this.addCommand({
       id: "git-stage-all",
@@ -212,6 +226,20 @@ export default class ObsidianGitPlugin extends Plugin {
     });
   }
 
+  private registerRibbon(): void {
+    this.syncRibbonEl = this.addRibbonIcon(
+      "refresh-cw",
+      "Git Sync (fetch, rebase, commit, push)",
+      async () => {
+        await this.runGitOp("Sync", async () => {
+          await this.syncWithRemote();
+          await this.refreshStatus();
+        });
+      }
+    );
+    this.syncRibbonEl.addClass("obsidian-git-sync-ribbon");
+  }
+
   // -------------------------------------------------------------------------
   // Auto-commit
   // -------------------------------------------------------------------------
@@ -326,6 +354,79 @@ export default class ObsidianGitPlugin extends Plugin {
     }
     await this.gitManager.push();
     new Notice("Git: push complete.");
+  }
+
+  private async syncWithRemote(): Promise<void> {
+    const before = await this.gitManager.status();
+    const hadLocalChanges =
+      before.modified.length > 0 ||
+      before.not_added.length > 0 ||
+      before.deleted.length > 0 ||
+      before.renamed.length > 0 ||
+      before.staged.length > 0;
+
+    const stashLabel = `obsidian-git-sync-${Date.now()}`;
+    let stashed = false;
+
+    try {
+      if (hadLocalChanges) {
+        await this.gitManager.stashPush(stashLabel);
+        stashed = true;
+        new Notice("Git sync: local changes stashed.");
+      }
+
+      await this.gitManager.fetch();
+      await this.gitManager.rebase();
+
+      if (stashed) {
+        await this.gitManager.stashPop();
+        stashed = false;
+      }
+
+      const after = await this.gitManager.status();
+      if (after.conflicted.length > 0) {
+        throw new Error(this.buildConflictHelp("Detected conflicted files after rebase/stash pop."));
+      }
+
+      const hasLocalChangesAfterSync =
+        after.modified.length > 0 ||
+        after.not_added.length > 0 ||
+        after.deleted.length > 0 ||
+        after.renamed.length > 0 ||
+        after.staged.length > 0;
+
+      if (hasLocalChangesAfterSync) {
+        const msg = this.buildCommitMessage();
+        await this.gitManager.stageAllAndCommit(msg);
+        new Notice(`Git sync: committed local changes — "${msg}"`);
+      }
+
+      await this.push();
+      new Notice("Git sync: complete.");
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      if (this.isConflictError(raw)) {
+        throw new Error(this.buildConflictHelp(raw));
+      }
+      throw e;
+    }
+  }
+
+  private isConflictError(message: string): boolean {
+    const m = message.toLowerCase();
+    return m.includes("conflict") || m.includes("could not apply") || m.includes("merge failed");
+  }
+
+  private buildConflictHelp(reason: string): string {
+    return [
+      `${reason}`,
+      "Conflict resolution steps:",
+      "1) Open conflicted files and resolve <<<<<<< / ======= / >>>>>>> markers.",
+      "2) Run command: \"Git: Stage all changes\".",
+      "3) If rebase is in progress, continue in terminal: git rebase --continue.",
+      "4) Then run command: \"Git: Sync with remote (fetch, rebase, commit, push)\" again.",
+      "Tip: If you want to abort current rebase, run: git rebase --abort.",
+    ].join("\n");
   }
 
   /**

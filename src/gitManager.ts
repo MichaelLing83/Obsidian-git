@@ -62,8 +62,25 @@ export class GitManager {
   });
 
   private async getHttpClient(): Promise<any> {
-    // Use web transport everywhere to keep a single browser-compatible runtime
-    // bundle that works on desktop and mobile.
+    // On mobile use the fetch-based web transport (no Node APIs available).
+    // On desktop Electron use isomorphic-git's Node HTTP transport, loaded via
+    // runtime require so it is never bundled (and never breaks the mobile build).
+    if (Platform.isMobile) {
+      return http;
+    }
+    const runtimeRequire =
+      (globalThis as any).require ??
+      (typeof require === "function" ? require : undefined);
+    if (typeof runtimeRequire === "function") {
+      try {
+        // isomorphic-git/http/node is a CJS module; its .request is the export
+        const nodeHttp = runtimeRequire("isomorphic-git/http/node");
+        return nodeHttp.default ?? nodeHttp;
+      } catch {
+        // fall back to web transport if for some reason the node module isn't
+        // available at runtime (shouldn't happen on desktop Electron)
+      }
+    }
     return http;
   }
 

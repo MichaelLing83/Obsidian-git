@@ -18,6 +18,13 @@ interface StatLike {
   ino: number;
   mtimeMs: number;
   ctimeMs: number;
+  isFile: () => boolean;
+  isDirectory: () => boolean;
+  isSymbolicLink: () => boolean;
+  // Some bundled/minified code paths call lowercase variants.
+  isfile: () => boolean;
+  isdirectory: () => boolean;
+  issymboliclink: () => boolean;
 }
 
 export class ObsidianFsAdapter {
@@ -90,13 +97,20 @@ class ObsidianFsPromises {
   private async _stat(path: string): Promise<StatLike> {
     const s = await this.adapter.stat(path);
     if (!s) throw Object.assign(new Error(`ENOENT: no such file or directory, stat '${path}'`), { code: "ENOENT" });
+    const isDir = s.type === "folder";
     return {
-      type: s.type === "folder" ? "dir" : "file",
-      mode: s.type === "folder" ? 0o040755 : 0o100644,
+      type: isDir ? "dir" : "file",
+      mode: isDir ? 0o040755 : 0o100644,
       size: s.size,
       ino: 0,
       mtimeMs: s.mtime,
       ctimeMs: s.ctime,
+      isFile: () => !isDir,
+      isDirectory: () => isDir,
+      isSymbolicLink: () => false,
+      isfile: () => !isDir,
+      isdirectory: () => isDir,
+      issymboliclink: () => false,
     };
   }
 

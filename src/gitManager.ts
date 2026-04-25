@@ -159,6 +159,31 @@ export class GitManager {
     await this.git.rebase([`${remoteName}/${branch}`]);
   }
 
+  /**
+   * Destructive one-way sync from remote to local.
+   * Local differences are discarded and local files are aligned to remote branch.
+   */
+  async forceSyncFromRemote(): Promise<void> {
+    const { remoteName, remoteUrl, branch } = this.settings;
+    if (!remoteUrl) {
+      throw new Error("Remote URL is empty. Configure it before force sync.");
+    }
+
+    const isRepo = await this.isGitRepository();
+    if (!isRepo) {
+      await this.git.init();
+    }
+
+    await this.setRemote(remoteName, remoteUrl);
+    await this.fetch();
+
+    await this.git.raw(["checkout", "-B", branch, `${remoteName}/${branch}`]);
+    await this.git.raw(["reset", "--hard", `${remoteName}/${branch}`]);
+
+    // Keep local Obsidian app configuration to avoid breaking the running vault.
+    await this.git.raw(["clean", "-fd", "-e", ".obsidian/"]);
+  }
+
   /** Stash local changes, including untracked files */
   async stashPush(message: string): Promise<void> {
     await this.git.raw(["stash", "push", "-u", "-m", message]);

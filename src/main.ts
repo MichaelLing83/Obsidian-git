@@ -74,6 +74,39 @@ export default class ObsidianGitPlugin extends Plugin {
       },
     });
 
+    // --- Force sync from remote (destructive) ---
+    this.addCommand({
+      id: "git-force-sync-from-remote",
+      name: "Force sync from remote (destructive, discard local differences)",
+      callback: async () => {
+        await this.runGitOp("Force Sync", async () => {
+          if (!this.settings.enableForceSync) {
+            new Notice(
+              "Git force sync is disabled. Enable 'Force sync from remote (destructive)' in settings first."
+            );
+            return;
+          }
+
+          const confirmed = window.confirm(
+            [
+              "Force sync will discard local differences and overwrite local files from remote branch.",
+              "Untracked files will be removed (except .obsidian).",
+              "Continue?",
+            ].join("\n")
+          );
+
+          if (!confirmed) {
+            new Notice("Git force sync canceled.");
+            return;
+          }
+
+          await this.gitManager.forceSyncFromRemote();
+          new Notice("Git force sync complete. Local vault now matches remote branch (except .obsidian).", 10000);
+          await this.refreshStatus();
+        });
+      },
+    });
+
     // --- Stage all ---
     this.addCommand({
       id: "git-stage-all",

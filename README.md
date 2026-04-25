@@ -15,6 +15,7 @@ Run `add`, `commit`, `push`, `fetch`, `pull`, and `rebase` directly from Obsidia
 | **Push / Fetch / Pull** | Interact with any HTTPS or SSH remote |
 | **Rebase** | Rebase the current branch onto the configured remote branch |
 | **Git Sync** | One-click sync: fetch → rebase → commit local changes → push |
+| **Force sync (destructive)** | Optional one-way remote → local overwrite that discards local differences |
 | **Backup command** | One-click: stage all → commit → (pull →) push |
 | **Auto-commit** | Commit on a configurable schedule (1 – 120 minutes) |
 | **Remote configuration** | Set remote URL, name, and branch from the settings panel |
@@ -80,6 +81,7 @@ Click **Apply** to persist the remote URL to your local git configuration.
 |---|---|
 | **Pull strategy** | `merge` (merge commit) or `rebase` (replay local commits on top of remote) |
 | **Pull before push** | Automatically pull before every push to avoid rejected pushes |
+| **Enable force sync from remote (destructive)** | Enables a dangerous command that forces local vault content to match remote and discards local differences |
 
 ### Auto-commit
 
@@ -99,6 +101,7 @@ All commands are accessible via the **Command palette** (`Ctrl/Cmd + P`):
 |---|---|
 | `Git: Stage all changes` | `git add -A` |
 | `Git: Sync with remote (fetch, rebase, commit, push)` | Fetch remote, rebase local branch, commit local changes, push |
+| `Git: Force sync from remote (destructive, discard local differences)` | Overwrite local files from remote branch and discard local differences |
 | `Git: Commit staged changes` | Commit with the message template |
 | `Git: Stage all and commit` | Stage + commit in one step |
 | `Git: Push to remote` | Push (optionally pulls first) |

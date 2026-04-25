@@ -36,6 +36,9 @@ export interface ObsidianGitSettings {
   /** Pull strategy: merge or rebase */
   pullStrategy: "merge" | "rebase";
 
+  /** Allow destructive force sync from remote to local */
+  enableForceSync: boolean;
+
   /** Show status in the status bar */
   showStatusBar: boolean;
 }
@@ -52,5 +55,6 @@ export const DEFAULT_SETTINGS: ObsidianGitSettings = {
   autoPushOnCommit: false,
   pullBeforePush: true,
   pullStrategy: "rebase",
+  enableForceSync: false,
   showStatusBar: true,
 };

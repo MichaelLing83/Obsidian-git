@@ -164,6 +164,20 @@ export class ObsidianGitSettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(containerEl)
+      .setName("Enable force sync from remote (destructive)")
+      .setDesc(
+        "Allow running a destructive one-way sync that discards local differences and overwrites local files with the remote branch."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.enableForceSync)
+          .onChange(async (value) => {
+            this.plugin.settings.enableForceSync = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
     // ---- Auto-commit ----
     containerEl.createEl("h3", { text: "Auto-commit" });
 

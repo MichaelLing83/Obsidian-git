@@ -11,6 +11,10 @@ import { ObsidianGitSettings, GitStatus } from "./types";
 import { ObsidianFsAdapter } from "./fsAdapter";
 import * as git from "isomorphic-git";
 import http from "isomorphic-git/http/web";
+// Imported statically so esbuild bundles it, but wrapped in a __commonJS lazy
+// factory — the factory only executes when getHttpClient() calls it, which
+// only happens on desktop (Platform.isMobile === false).
+import nodeHttp from "isomorphic-git/http/node";
 
 export class GitManager {
   private vaultPath: string;
@@ -62,26 +66,9 @@ export class GitManager {
   });
 
   private async getHttpClient(): Promise<any> {
-    // On mobile use the fetch-based web transport (no Node APIs available).
-    // On desktop Electron use isomorphic-git's Node HTTP transport, loaded via
-    // runtime require so it is never bundled (and never breaks the mobile build).
-    if (Platform.isMobile) {
-      return http;
-    }
-    const runtimeRequire =
-      (globalThis as any).require ??
-      (typeof require === "function" ? require : undefined);
-    if (typeof runtimeRequire === "function") {
-      try {
-        // isomorphic-git/http/node is a CJS module; its .request is the export
-        const nodeHttp = runtimeRequire("isomorphic-git/http/node");
-        return nodeHttp.default ?? nodeHttp;
-      } catch {
-        // fall back to web transport if for some reason the node module isn't
-        // available at runtime (shouldn't happen on desktop Electron)
-      }
-    }
-    return http;
+    // Desktop Electron: use Node HTTP transport (uses Node's https module,
+    // no CORS restrictions).  Mobile: use fetch-based web transport.
+    return Platform.isMobile ? http : nodeHttp;
   }
 
   private get fs(): any {

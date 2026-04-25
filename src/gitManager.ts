@@ -10,7 +10,7 @@ import { DataAdapter, Platform } from "obsidian";
 import { ObsidianGitSettings, GitStatus } from "./types";
 import { ObsidianFsAdapter } from "./fsAdapter";
 import * as git from "isomorphic-git";
-import http from "isomorphic-git/http/web";
+import obsidianHttpTransport from "./httpTransport";
 
 export class GitManager {
   private vaultPath: string;
@@ -62,15 +62,9 @@ export class GitManager {
   });
 
   private async getHttpClient(): Promise<any> {
-    // Mobile: use fetch-based web transport (no Node APIs in Android WebView).
-    // Desktop Electron: use Node HTTP transport — loaded via dynamic import so
-    // esbuild's __commonJS factory for it is only *called* on this branch and
-    // never executed at module-init time on mobile.
-    if (Platform.isMobile) {
-      return http;
-    }
-    const { default: nodeHttp } = await import("isomorphic-git/http/node");
-    return nodeHttp;
+    // Use Obsidian's requestUrl-backed transport on all platforms.
+    // It bypasses CORS on desktop (Electron net module) and works on mobile.
+    return obsidianHttpTransport;
   }
 
   private get fs(): any {

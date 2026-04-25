@@ -18,21 +18,6 @@ const isomorphicGitBrowserEntryPlugin = {
     build.onResolve({ filter: /^isomorphic-git$/ }, () => ({
       path: path.join(process.cwd(), "node_modules/isomorphic-git/index.js"),
     }));
-
-    // Force the web HTTP transport to the correct file.
-    build.onResolve({ filter: /^isomorphic-git\/http\/web$/ }, () => ({
-      path: path.join(process.cwd(), "node_modules/isomorphic-git/http/web/index.js"),
-    }));
-
-    // Force the Node HTTP transport to its CJS entry.  The module itself uses
-    // Node built-ins (https, http, …) which are marked as external below, so
-    // they stay as runtime require() calls.  On Electron those resolve fine.
-    // The factory is wrapped lazily by esbuild's __commonJS, so the require()
-    // calls inside only execute when the factory is actually invoked — which
-    // our code only does on desktop (Platform.isMobile === false).
-    build.onResolve({ filter: /^isomorphic-git\/http\/node$/ }, () => ({
-      path: path.join(process.cwd(), "node_modules/isomorphic-git/http/node/index.cjs"),
-    }));
   },
 };
 
@@ -56,26 +41,6 @@ const context = await esbuild.context({
     "@lezer/common",
     "@lezer/highlight",
     "@lezer/lr",
-    // Node built-ins used by isomorphic-git/http/node (via simple-get).
-    // Marked external so they stay as runtime require() — resolved by Electron
-    // on desktop.  On mobile the code path is never reached so they're never
-    // called.
-    "http",
-    "https",
-    "net",
-    "tls",
-    "zlib",
-    "stream",
-    "events",
-    "url",
-    "path",
-    "os",
-    "crypto",
-    "buffer",
-    "util",
-    "assert",
-    "querystring",
-    "string_decoder",
   ],
   platform: "browser",
   format: "cjs",

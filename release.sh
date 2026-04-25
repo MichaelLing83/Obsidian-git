@@ -70,14 +70,32 @@ info "Pushing to remote..."
 git push origin "$BRANCH"
 git push origin "$NEW_VERSION"
 
+# ── create zip for manual / Android install ────────────────────────────────
+ZIP_NAME="obsidian-git-${NEW_VERSION}.zip"
+info "Creating $ZIP_NAME for manual installation..."
+# Build a folder inside the zip so the user can unzip directly into .obsidian/plugins/
+TMP_DIR=$(mktemp -d)
+mkdir -p "$TMP_DIR/obsidian-git"
+cp main.js manifest.json "$TMP_DIR/obsidian-git/"
+(cd "$TMP_DIR" && zip -r - obsidian-git) > "$ZIP_NAME"
+rm -rf "$TMP_DIR"
+
 # ── create GitHub Release ───────────────────────────────────────────────────
 info "Creating GitHub Release..."
 gh release create "$NEW_VERSION" \
   main.js \
   manifest.json \
+  "$ZIP_NAME" \
   --title "$NEW_VERSION" \
-  --notes "Release $NEW_VERSION" \
+  --notes "Release $NEW_VERSION
+
+## Manual installation (Android / iOS / Desktop)
+1. Download \`${ZIP_NAME}\`
+2. Extract it — you will get an \`obsidian-git/\` folder
+3. Move that folder into your vault's \`.obsidian/plugins/\` directory
+4. In Obsidian → Settings → Community plugins, enable **Obsidian Git**" \
   --latest
+rm -f "$ZIP_NAME"
 
 green "✓ Released $NEW_VERSION successfully!"
 echo ""

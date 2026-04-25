@@ -63,10 +63,10 @@ export default class ObsidianGitPlugin extends Plugin {
   // -------------------------------------------------------------------------
 
   private registerCommands(): void {
-    // --- Sync (fetch + rebase + commit + push) ---
+    // --- Sync (commit + fetch + pull + push) ---
     this.addCommand({
       id: "git-sync",
-      name: "Sync with remote (fetch, rebase, commit, push)",
+      name: "Sync with remote (commit, fetch, pull, push)",
       callback: async () => {
         await this.runGitOp("Sync", async () => {
           await this.syncWithRemote();
@@ -263,7 +263,7 @@ export default class ObsidianGitPlugin extends Plugin {
   private registerRibbon(): void {
     this.syncRibbonEl = this.addRibbonIcon(
       "refresh-cw",
-      "Git Sync (fetch, rebase, commit, push)",
+      "Git Sync (commit, fetch, pull, push)",
       async () => {
         await this.runGitOp("Sync", async () => {
           await this.syncWithRemote();
@@ -391,78 +391,8 @@ export default class ObsidianGitPlugin extends Plugin {
   }
 
   private async syncWithRemote(): Promise<void> {
-    if (this.gitManager.isDesktop) {
-      await this.syncWithRemoteDesktop();
-    } else {
-      await this.syncWithRemoteMobile();
-    }
-  }
-
-  /**
-   * Desktop sync: stash → fetch → rebase → stash pop → commit → push.
-   * Uses stash so local in-progress work is preserved across the rebase.
-   */
-  private async syncWithRemoteDesktop(): Promise<void> {
-    const before = await this.gitManager.status();
-    const hadLocalChanges =
-      before.modified.length > 0 ||
-      before.not_added.length > 0 ||
-      before.deleted.length > 0 ||
-      before.renamed.length > 0 ||
-      before.staged.length > 0;
-
-    const stashLabel = `obsidian-git-sync-${Date.now()}`;
-    let stashed = false;
-
-    try {
-      if (hadLocalChanges) {
-        await this.gitManager.stashPush(stashLabel);
-        stashed = true;
-        new Notice("Git sync: local changes stashed.");
-      }
-
-      await this.gitManager.fetch();
-      await this.gitManager.rebase();
-
-      if (stashed) {
-        await this.gitManager.stashPop();
-        stashed = false;
-      }
-
-      const after = await this.gitManager.status();
-      if (after.conflicted.length > 0) {
-        throw new Error(this.buildConflictHelp("Detected conflicted files after rebase/stash pop."));
-      }
-
-      const hasLocalChangesAfterSync =
-        after.modified.length > 0 ||
-        after.not_added.length > 0 ||
-        after.deleted.length > 0 ||
-        after.renamed.length > 0 ||
-        after.staged.length > 0;
-
-      if (hasLocalChangesAfterSync) {
-        const msg = this.buildCommitMessage();
-        await this.gitManager.stageAllAndCommit(msg);
-        new Notice(`Git sync: committed local changes — "${msg}"`);
-      }
-
-      await this.push();
-      new Notice("Git sync: complete.");
-    } catch (e) {
-      const raw = e instanceof Error ? e.message : String(e);
-      if (this.isConflictError(raw)) {
-        throw new Error(this.buildConflictHelp(raw));
-      }
-      throw e;
-    }
-  }
-
-  /**
-   * Mobile sync: commit local changes → fetch → merge → push.
-   * Stash and rebase are not available on mobile (isomorphic-git limitation).
-   */
-  private async syncWithRemoteMobile(): Promise<void> {
+    // Unified sync flow for desktop and mobile:
+    // 1) commit local changes, 2) fetch, 3) pull, 4) conflict check, 5) push.
     try {
       const before = await this.gitManager.status();
       const hasLocalChanges =
@@ -483,7 +413,7 @@ export default class ObsidianGitPlugin extends Plugin {
 
       const after = await this.gitManager.status();
       if (after.conflicted.length > 0) {
-        throw new Error(this.buildConflictHelp("Merge conflict detected after pull."));
+        throw new Error(this.buildConflictHelp("Conflict detected after pull."));
       }
 
       await this.push();

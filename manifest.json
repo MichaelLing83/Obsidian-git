@@ -1,7 +1,7 @@
 {
   "id": "obsidian-git",
   "name": "Obsidian Git",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "minAppVersion": "1.4.0",
   "description": "Perform git operations (add, commit, push, fetch, pull, rebase) on your vault and configure remote repository settings.",
   "author": "MichaelLing83",

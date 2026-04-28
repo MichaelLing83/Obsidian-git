@@ -94,7 +94,7 @@ export class GitManager {
 
   async stageFiles(files: string[]): Promise<void> {
     for (const f of files) {
-      await git.add({ fs: this.fs, dir: this.vaultPath, filepath: f });
+      await git.add({ fs: this.fs, dir: this.vaultPath, filepath: f, force: true });
     }
   }
 
@@ -373,11 +373,20 @@ export class GitManager {
 
   private async stageAllWithStatusMatrix(): Promise<void> {
     const matrix = await git.statusMatrix({ fs: this.fs, dir: this.vaultPath });
-    for (const [filepath, head, workdir] of matrix) {
+    for (const [filepath, head, workdir, stage] of matrix) {
       if (head === 1 && workdir === 0) {
+        console.info("[Obsidian Git] stageAll remove", { filepath, head, workdir, stage });
         await git.remove({ fs: this.fs, dir: this.vaultPath, filepath: filepath as string });
-      } else if (workdir !== 0) {
-        await git.add({ fs: this.fs, dir: this.vaultPath, filepath: filepath as string });
+        continue;
+      }
+
+      const shouldAddUntracked = head === 0 && workdir === 2 && stage === 0;
+      const shouldAddModified = head === 1 && workdir === 2 && stage === 1;
+
+      if (shouldAddUntracked || shouldAddModified) {
+        console.info("[Obsidian Git] stageAll add", { filepath, head, workdir, stage });
+        const force = head === 1;
+        await git.add({ fs: this.fs, dir: this.vaultPath, filepath: filepath as string, force });
       }
     }
   }

@@ -2,7 +2,7 @@ import { Notice, Platform, Plugin, moment } from "obsidian";
 import { Buffer as BufferPolyfill } from "buffer";
 import { GitManager } from "./gitManager";
 import { ObsidianGitSettingTab } from "./settings";
-import { DEFAULT_SETTINGS, ObsidianGitSettings } from "./types";
+import { DEFAULT_SETTINGS, GitStatus, ObsidianGitSettings } from "./types";
 
 // Android WebView may not expose a global Buffer symbol, but isomorphic-git
 // and its internals rely on it in multiple code paths (pack/index handling).
@@ -25,6 +25,8 @@ export default class ObsidianGitPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+
+    console.info(`[Obsidian Git] loading plugin v${this.manifest.version}`);
 
     const adapter = this.app.vault.adapter;
     // On mobile, DataAdapter uses vault-relative paths so dir must be "".
@@ -393,6 +395,51 @@ export default class ObsidianGitPlugin extends Plugin {
     return template.replace("{{date}}", date);
   }
 
+  private logStatusSnapshot(label: string, status: GitStatus): void {
+    console.info(`[Obsidian Git] ${label}`, {
+      current: status.current,
+      ahead: status.ahead,
+      behind: status.behind,
+      staged: status.staged,
+      modified: status.modified,
+      not_added: status.not_added,
+      deleted: status.deleted,
+      renamed: status.renamed,
+      conflicted: status.conflicted,
+    });
+
+    const changedFiles = [
+      ...status.staged.map((filepath) => `staged:${filepath}`),
+      ...status.modified.map((filepath) => `modified:${filepath}`),
+      ...status.not_added.map((filepath) => `untracked:${filepath}`),
+      ...status.deleted.map((filepath) => `deleted:${filepath}`),
+      ...status.renamed.map((filepath) => `renamed:${filepath}`),
+      ...status.conflicted.map((filepath) => `conflicted:${filepath}`),
+    ];
+    console.info(`[Obsidian Git] ${label} changed files`, changedFiles);
+  }
+
+  private collectPendingFiles(status: GitStatus): Set<string> {
+    return new Set([
+      ...status.staged,
+      ...status.modified,
+      ...status.not_added,
+      ...status.deleted,
+      ...status.renamed,
+    ]);
+  }
+
+  private pendingStillUnstaged(pending: Set<string>, status: GitStatus): string[] {
+    const staged = new Set(status.staged);
+    const unstagedNow = new Set([
+      ...status.modified,
+      ...status.not_added,
+      ...status.deleted,
+      ...status.renamed,
+    ]);
+    return [...pending].filter((file) => unstagedNow.has(file) && !staged.has(file));
+  }
+
   private async push(): Promise<void> {
     if (!this.settings.remoteUrl && !this.settings.remoteName) {
       new Notice("Git: remote URL not configured. Skipping push.");
@@ -425,6 +472,7 @@ export default class ObsidianGitPlugin extends Plugin {
 
     try {
       const before = await this.gitManager.status();
+      this.logStatusSnapshot("sync before", before);
       const hasLocalChanges =
         before.modified.length > 0 ||
         before.not_added.length > 0 ||
@@ -434,19 +482,54 @@ export default class ObsidianGitPlugin extends Plugin {
 
       if (hasLocalChanges) {
         const msg = this.buildCommitMessage();
-        await this.gitManager.stageAllAndCommit(msg);
+        const pending = this.collectPendingFiles(before);
+        let staged = before;
+        const maxStageAttempts = 3;
+
+        for (let attempt = 1; attempt <= maxStageAttempts; attempt++) {
+          await this.gitManager.stageAll();
+          staged = await this.gitManager.status();
+          this.logStatusSnapshot(`sync after stageAll attempt ${attempt} before commit`, staged);
+
+          const remaining = this.pendingStillUnstaged(pending, staged);
+          if (remaining.length === 0) {
+            break;
+          }
+
+          if (attempt < maxStageAttempts) {
+            console.warn("[Obsidian Git] stageAll left files unstaged; retrying", {
+              attempt,
+              remaining,
+            });
+          } else {
+            console.warn("[Obsidian Git] some files remained unstaged before commit", {
+              remaining,
+            });
+          }
+        }
+
+        await this.gitManager.commit(msg);
+        const committed = await this.gitManager.status();
+        this.logStatusSnapshot("sync after local commit", committed);
         new Notice(`Git sync: committed local changes — "${msg}"`);
+      } else {
+        console.info("[Obsidian Git] sync skipped local commit: no local changes detected");
       }
 
       await this.gitManager.fetch();
+      const afterFetch = await this.gitManager.status();
+      this.logStatusSnapshot("sync after fetch", afterFetch);
       await this.gitManager.pull();
 
       const after = await this.gitManager.status();
+      this.logStatusSnapshot("sync after pull", after);
       if (after.conflicted.length > 0) {
         throw new Error(this.buildConflictHelp("Conflict detected after pull."));
       }
 
       await this.push();
+      const afterPush = await this.gitManager.status();
+      this.logStatusSnapshot("sync after push", afterPush);
       new Notice("Git sync: complete.");
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);

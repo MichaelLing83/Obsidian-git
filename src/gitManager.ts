@@ -71,6 +71,50 @@ export class GitManager {
     return this.fsClient;
   }
 
+  private isTimeoutError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    const m = message.toLowerCase();
+    return m.includes("err_timed_out") || m.includes("etimedout") || m.includes("timeout");
+  }
+
+  private async wait(ms: number): Promise<void> {
+    await new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  private async runNetworkOpWithRetry<T>(opName: string, fn: () => Promise<T>): Promise<T> {
+    const maxAttempts = 2;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+        const isTimeout = this.isTimeoutError(error);
+        if (!isTimeout || attempt >= maxAttempts) {
+          break;
+        }
+
+        console.warn(`[Obsidian Git] ${opName} timed out, retrying`, {
+          attempt,
+          maxAttempts,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        await this.wait(1000);
+      }
+    }
+
+    if (this.isTimeoutError(lastError)) {
+      const original = lastError instanceof Error ? lastError.message : String(lastError);
+      throw new Error(
+        `${opName} failed: network timeout (${original}).\n` +
+          "Check network/VPN/proxy/firewall, then retry."
+      );
+    }
+
+    throw lastError;
+  }
+
   async isGitRepository(): Promise<boolean> {
     try {
       await git.resolveRef({ fs: this.fs, dir: this.vaultPath, ref: "HEAD" });
@@ -119,27 +163,31 @@ export class GitManager {
   async push(force = false): Promise<void> {
     const { remoteName, branch } = this.settings;
     const httpClient = await this.getHttpClient();
-    await git.push({
-      fs: this.fs,
-      http: httpClient,
-      dir: this.vaultPath,
-      remote: remoteName,
-      remoteRef: branch,
-      force,
-      onAuth: this.isoOnAuth,
+    await this.runNetworkOpWithRetry("Push", async () => {
+      await git.push({
+        fs: this.fs,
+        http: httpClient,
+        dir: this.vaultPath,
+        remote: remoteName,
+        remoteRef: branch,
+        force,
+        onAuth: this.isoOnAuth,
+      });
     });
   }
 
   async fetch(): Promise<void> {
     const { remoteName, branch } = this.settings;
     const httpClient = await this.getHttpClient();
-    await git.fetch({
-      fs: this.fs,
-      http: httpClient,
-      dir: this.vaultPath,
-      remote: remoteName,
-      remoteRef: branch,
-      onAuth: this.isoOnAuth,
+    await this.runNetworkOpWithRetry("Fetch", async () => {
+      await git.fetch({
+        fs: this.fs,
+        http: httpClient,
+        dir: this.vaultPath,
+        remote: remoteName,
+        remoteRef: branch,
+        onAuth: this.isoOnAuth,
+      });
     });
   }
 

@@ -12,6 +12,8 @@
 
 import { requestUrl } from "obsidian";
 
+const HTTP_TIMEOUT_MS = 120000;
+
 // Drain an async-iterable body into a single Uint8Array.
 async function collect(
   iterable: AsyncIterableIterator<Uint8Array> | Iterable<Uint8Array>
@@ -84,9 +86,10 @@ async function request({
     method,
     headers,
     body: bodyBuffer,
+    timeout: HTTP_TIMEOUT_MS,
     // Don't throw on non-2xx — let isomorphic-git handle status codes.
     throw: false,
-  });
+  } as any);
 
   // Normalise headers: requestUrl returns a plain object.
   const responseHeaders: Record<string, string> = {};

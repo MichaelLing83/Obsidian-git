@@ -385,7 +385,10 @@ export default class ObsidianGitPlugin extends Plugin {
     }
   }
 
-  /** Stage all changes (incl. new / modified / deleted) and commit with the template message. */
+  /**
+   * Git history toolbar only: stage all and commit locally.
+   * Does not fetch, pull, rebase, or push (unlike command palette / auto-push settings).
+   */
   async runHistoryToolbarCommitAll(): Promise<void> {
     this.setGitHistoryViewBusy("Staging and committing…");
     try {
@@ -393,14 +396,6 @@ export default class ObsidianGitPlugin extends Plugin {
         const msg = this.buildCommitMessage();
         await this.gitManager.stageAllAndCommit(msg);
         new Notice(`Git: staged & committed — "${msg}"`);
-        if (this.settings.autoPushOnCommit) {
-          if (this.settings.pullBeforePush) {
-            this.setGitHistoryViewBusy("Pulling…");
-            await this.gitManager.pull();
-          }
-          this.setGitHistoryViewBusy("Pushing…");
-          await this.push();
-        }
         await this.refreshStatus();
         await this.refreshGitHistoryView();
       });

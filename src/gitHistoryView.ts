@@ -154,7 +154,7 @@ export class GitHistoryView extends ItemView {
     mkOp("Fetch", "Fetch from remote", () => this.plugin.runHistoryToolbarFetch());
     mkOp(
       "Commit all",
-      "Stage all changes (new, modified, deleted) and commit using your message template",
+      "Stage all changes (new, modified, deleted) and commit locally only — no fetch, pull, rebase, or push",
       () => this.plugin.runHistoryToolbarCommitAll()
     );
     mkOp("Rebase", "Rebase onto remote branch (same as command palette)", () => this.plugin.runHistoryToolbarRebase());

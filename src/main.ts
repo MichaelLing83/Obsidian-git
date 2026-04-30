@@ -419,7 +419,10 @@ export default class ObsidianGitPlugin extends Plugin {
   }
 
   async runHistoryToolbarPush(): Promise<void> {
-    this.setGitHistoryViewBusy(this.settings.pullBeforePush ? "Pulling, then pushing…" : "Pushing…");
+    // When settings "Pull before push" is on (default), we run pull() = fetch + integrate — not push-only.
+    this.setGitHistoryViewBusy(
+      this.settings.pullBeforePush ? "Fetching & integrating remote, then pushing…" : "Pushing…"
+    );
     try {
       await this.runGitOp("Push", async () => {
         if (this.settings.pullBeforePush) {

@@ -158,7 +158,11 @@ export class GitHistoryView extends ItemView {
       () => this.plugin.runHistoryToolbarCommitAll()
     );
     mkOp("Rebase", "Rebase onto remote branch (same as command palette)", () => this.plugin.runHistoryToolbarRebase());
-    mkOp("Push", "Pull first if enabled in settings, then push to remote", () => this.plugin.runHistoryToolbarPush());
+    mkOp(
+      "Push",
+      "If “Pull before push” is on in settings (default): fetch + integrate remote, then push. Otherwise push only.",
+      () => this.plugin.runHistoryToolbarPush()
+    );
 
     this.bodyEl = this.contentEl.createDiv({ cls: "vault-git-history-scroll" });
     await this.reload();

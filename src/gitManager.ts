@@ -6,7 +6,7 @@
  * while mobile uses Obsidian's DataAdapter wrapper.
  */
 
-import { DataAdapter, Platform } from "obsidian";
+import { DataAdapter, Notice, Platform } from "obsidian";
 import { STAGE, TREE, WORKDIR, walk } from "isomorphic-git";
 import * as git from "isomorphic-git";
 import { lineDiffStats, isProbablyBinaryUtf8 } from "./diffLineStats";
@@ -225,19 +225,38 @@ export class GitManager {
     });
   }
 
-  async pull(): Promise<void> {
-    const { remoteName, branch } = this.settings;
-    await this.fetch();
+  private mergeAuthor(): { name: string; email: string } {
+    return {
+      name: this.settings.authUsername || "Obsidian",
+      email: "",
+    };
+  }
 
-    // If the local branch doesn't exist yet (empty repo after init, or after
-    // forceSyncFromRemote set up the remote tracking ref but no local branch
-    // was created), do a checkout rather than a merge.
+  private isFastForwardError(e: unknown): boolean {
+    return typeof e === "object" && e !== null && (e as { code?: string }).code === "FastForwardError";
+  }
+
+  /**
+   * Integrate the configured remote-tracking branch into the local branch.
+   * Call only after `fetch()` — this does not fetch.
+   *
+   * - `merge`: fast-forward when possible, otherwise a merge commit (follows settings).
+   * - `rebase`: fast-forward only first (replay not available); if not possible, merge with a notice.
+   *
+   * isomorphic-git has no interactive rebase; “rebase” here is that two-step behavior.
+   */
+  async integrateRemoteAfterFetch(options?: { integration?: "merge" | "rebase" }): Promise<void> {
+    const { remoteName, branch } = this.settings;
+    const integration: "merge" | "rebase" =
+      options?.integration ??
+      (this.settings.pullStrategy === "rebase" ? "rebase" : "merge");
+
     let localBranchExists = false;
     try {
       await git.resolveRef({ fs: this.fs, dir: this.vaultPath, ref: `refs/heads/${branch}` });
       localBranchExists = true;
     } catch {
-      // branch doesn't exist yet
+      /* no local branch */
     }
 
     if (!localBranchExists) {
@@ -248,22 +267,60 @@ export class GitManager {
       return;
     }
 
-    await git.merge({
-      fs: this.fs,
-      dir: this.vaultPath,
-      ours: branch,
-      theirs: `${remoteName}/${branch}`,
-      fastForwardOnly: false,
-      author: {
-        name: this.settings.authUsername || "Obsidian",
-        email: "",
-      },
-    });
+    const theirs = `${remoteName}/${branch}`;
+    const author = this.mergeAuthor();
+
+    if (integration === "merge") {
+      await git.merge({
+        fs: this.fs,
+        dir: this.vaultPath,
+        ours: branch,
+        theirs,
+        fastForward: true,
+        fastForwardOnly: false,
+        author,
+      });
+      return;
+    }
+
+    try {
+      await git.merge({
+        fs: this.fs,
+        dir: this.vaultPath,
+        ours: branch,
+        theirs,
+        fastForward: true,
+        fastForwardOnly: true,
+        author,
+      });
+    } catch (e) {
+      if (!this.isFastForwardError(e)) {
+        throw e;
+      }
+      new Notice(
+        "Git: cannot fast-forward to remote; merging remote into local (interactive rebase is not available in this engine).",
+        10000
+      );
+      await git.merge({
+        fs: this.fs,
+        dir: this.vaultPath,
+        ours: branch,
+        theirs,
+        fastForward: true,
+        fastForwardOnly: false,
+        author,
+      });
+    }
+  }
+
+  async pull(): Promise<void> {
+    await this.fetch();
+    await this.integrateRemoteAfterFetch();
   }
 
   async rebase(): Promise<void> {
-    // isomorphic-git does not support rebase; keep behavior as merge-based pull.
-    await this.pull();
+    await this.fetch();
+    await this.integrateRemoteAfterFetch({ integration: "rebase" });
   }
 
   async forceSyncFromRemote(): Promise<void> {
@@ -871,7 +928,11 @@ export class GitManager {
   }
 
   private async stageAllWithStatusMatrix(): Promise<void> {
-    const matrix = await git.statusMatrix({ fs: this.fs, dir: this.vaultPath });
+    const matrix = await git.statusMatrix({
+      fs: this.fs,
+      dir: this.vaultPath,
+      filter: (filepath) => !this.isUnderGitMetadataDir(filepath),
+    });
     for (const [filepath, head, workdir, stage] of matrix) {
       if (head === 1 && workdir === 0) {
         console.info("[Obsidian Git] stageAll remove", { filepath, head, workdir, stage });

@@ -85,10 +85,10 @@ export default class ObsidianGitPlugin extends Plugin {
   // -------------------------------------------------------------------------
 
   private registerCommands(): void {
-    // --- Sync (commit + fetch + pull + push) ---
+    // --- Sync (commit + fetch + integrate remote + push) ---
     this.addCommand({
       id: "git-sync",
-      name: "Sync with remote (commit, fetch, pull, push)",
+      name: "Sync with remote (commit, fetch, rebase, push)",
       callback: async () => {
         await this.runGitOp("Sync", async () => {
           await this.syncWithRemote();
@@ -294,7 +294,7 @@ export default class ObsidianGitPlugin extends Plugin {
   private registerRibbon(): void {
     this.syncRibbonEl = this.addRibbonIcon(
       "refresh-cw",
-      "Git Sync (commit, fetch, pull, push)",
+      "Git Sync (commit, fetch, integrate remote, push)",
       async () => {
         await this.runGitOp("Sync", async () => {
           await this.syncWithRemote();
@@ -612,7 +612,7 @@ export default class ObsidianGitPlugin extends Plugin {
   }
 
   private async push(): Promise<void> {
-    if (!this.settings.remoteUrl && !this.settings.remoteName) {
+    if (!this.settings.remoteUrl?.trim()) {
       new Notice("Git: remote URL not configured. Skipping push.");
       return;
     }
@@ -621,8 +621,12 @@ export default class ObsidianGitPlugin extends Plugin {
   }
 
   private async syncWithRemote(): Promise<void> {
-    // Unified sync flow for desktop and mobile:
-    // 1) commit local changes, 2) fetch, 3) pull, 4) conflict check, 5) push.
+    // Unified sync (desktop + mobile, isomorphic-git):
+    // 1) stage & commit all local changes (.gitignore respected; .git/ never staged)
+    // 2) fetch
+    // 3) integrate remote (rebase-style: fast-forward, else merge; true rebase N/A in engine)
+    // 4) push
+    // Conflicts: merge/rebase step throws; user must resolve, stage, sync again.
 
     // On first-time mobile setup (or after git init without commits) the repo
     // has no local HEAD.  Bootstrap from remote automatically so the user
@@ -687,15 +691,25 @@ export default class ObsidianGitPlugin extends Plugin {
         console.info("[Obsidian Git] sync skipped local commit: no local changes detected");
       }
 
+      if (!this.settings.remoteUrl?.trim()) {
+        new Notice("Git sync: local commit only (no remote URL configured).");
+        return;
+      }
+
       await this.gitManager.fetch();
       const afterFetch = await this.gitManager.status();
       this.logStatusSnapshot("sync after fetch", afterFetch);
-      await this.gitManager.pull();
+
+      await this.gitManager.integrateRemoteAfterFetch({ integration: "rebase" });
 
       const after = await this.gitManager.status();
-      this.logStatusSnapshot("sync after pull", after);
+      this.logStatusSnapshot("sync after integrate remote", after);
       if (after.conflicted.length > 0) {
-        throw new Error(this.buildConflictHelp("Conflict detected after pull."));
+        throw new Error(
+          this.buildConflictHelp(
+            `Conflict in: ${after.conflicted.join(", ")}. Resolve markers in those files, then stage and sync again.`
+          )
+        );
       }
 
       await this.push();
@@ -703,6 +717,14 @@ export default class ObsidianGitPlugin extends Plugin {
       this.logStatusSnapshot("sync after push", afterPush);
       new Notice("Git sync: complete.");
     } catch (e) {
+      const code = typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined;
+      if (code === "MergeConflictError" || code === "CheckoutConflictError") {
+        throw new Error(
+          this.buildConflictHelp(
+            e instanceof Error ? e.message : "Merge conflict with remote. Resolve the conflicted files below."
+          )
+        );
+      }
       const raw = e instanceof Error ? e.message : String(e);
       if (this.isConflictError(raw)) {
         throw new Error(this.buildConflictHelp(raw));
@@ -713,18 +735,21 @@ export default class ObsidianGitPlugin extends Plugin {
 
   private isConflictError(message: string): boolean {
     const m = message.toLowerCase();
-    return m.includes("conflict") || m.includes("could not apply") || m.includes("merge failed");
+    return (
+      m.includes("conflict") ||
+      m.includes("could not apply") ||
+      m.includes("merge failed") ||
+      m.includes("unmerged")
+    );
   }
 
   private buildConflictHelp(reason: string): string {
     return [
       `${reason}`,
-      "Conflict resolution steps:",
-      "1) Open conflicted files and resolve <<<<<<< / ======= / >>>>>>> markers.",
-      "2) Run command: \"Git: Stage all changes\".",
-      "3) If rebase is in progress, continue in terminal: git rebase --continue.",
-      "4) Then run command: \"Git: Sync with remote (fetch, rebase, commit, push)\" again.",
-      "Tip: If you want to abort current rebase, run: git rebase --abort.",
+      "Conflict resolution:",
+      "1) Open the listed files and fix <<<<<<< / ======= / >>>>>>> sections.",
+      "2) Run command: \"Git: Stage all changes\" (or stage in your editor).",
+      "3) Run command: \"Git: Sync with remote (commit, fetch, rebase, push)\" again.",
     ].join("\n");
   }
 

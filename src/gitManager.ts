@@ -380,6 +380,54 @@ export class GitManager {
         /* skip */
       }
     }
+    for (const [, labels] of map) {
+      labels.sort((a, b) => a.localeCompare(b));
+    }
+    return map;
+  }
+
+  /**
+   * Map commit oid → remote-tracking branch labels (`origin/main`, etc.).
+   */
+  async getRemoteBranchTipsByOid(): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    const isRepo = await this.isGitRepository();
+    if (!isRepo) return map;
+
+    try {
+      const remotes = await git.listRemotes({ fs: this.fs, dir: this.vaultPath });
+      for (const { remote } of remotes) {
+        let branchNames: string[] = [];
+        try {
+          branchNames = await git.listBranches({ fs: this.fs, dir: this.vaultPath, remote });
+        } catch {
+          continue;
+        }
+        for (const branchName of branchNames) {
+          try {
+            const oid = await git.resolveRef({
+              fs: this.fs,
+              dir: this.vaultPath,
+              ref: `refs/remotes/${remote}/${branchName}`,
+            });
+            const label = `${remote}/${branchName}`;
+            const list = map.get(oid) ?? [];
+            if (!list.includes(label)) {
+              list.push(label);
+              map.set(oid, list);
+            }
+          } catch {
+            /* skip missing ref */
+          }
+        }
+      }
+    } catch {
+      return map;
+    }
+
+    for (const [, labels] of map) {
+      labels.sort((a, b) => a.localeCompare(b));
+    }
     return map;
   }
 

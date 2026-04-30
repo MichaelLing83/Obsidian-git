@@ -79,8 +79,23 @@ function createHistorySvg(commits: GitLogCommit[], workingFirst: boolean): SVGSV
 }
 
 export class GitHistoryView extends ItemView {
+  private toolbarStatusEl?: HTMLSpanElement;
+  private toolbarControlButtons: HTMLButtonElement[] = [];
+
   constructor(leaf: WorkspaceLeaf, private readonly plugin: ObsidianGitPlugin) {
     super(leaf);
+  }
+
+  /** Shows status text and disables toolbar controls while long-running work runs. */
+  setToolbarBusy(message: string | null): void {
+    const busy = message !== null && message !== "";
+    if (this.toolbarStatusEl) {
+      this.toolbarStatusEl.setText(message ?? "");
+      this.toolbarStatusEl.toggleClass("vault-git-history-toolbar-status-busy", busy);
+    }
+    for (const b of this.toolbarControlButtons) {
+      b.disabled = busy;
+    }
   }
 
   getViewType(): string {
@@ -98,15 +113,26 @@ export class GitHistoryView extends ItemView {
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("vault-git-history-root");
+    this.toolbarControlButtons = [];
+
     const toolbar = this.contentEl.createDiv({ cls: "vault-git-history-toolbar" });
     const rowTop = toolbar.createDiv({ cls: "vault-git-history-toolbar-row vault-git-history-toolbar-row-top" });
     rowTop.createSpan({ cls: "vault-git-history-title", text: "Commit graph" });
+    this.toolbarStatusEl = rowTop.createSpan({ cls: "vault-git-history-toolbar-status" });
     const btn = rowTop.createEl("button", {
       cls: "vault-git-history-refresh",
       text: "Refresh",
     });
+    this.toolbarControlButtons.push(btn);
     btn.addEventListener("click", () => {
-      void this.reload();
+      void (async () => {
+        this.setToolbarBusy("Refreshing graph…");
+        try {
+          await this.reload();
+        } finally {
+          this.setToolbarBusy(null);
+        }
+      })();
     });
 
     const rowOps = toolbar.createDiv({
@@ -118,6 +144,7 @@ export class GitHistoryView extends ItemView {
         cls: "vault-git-history-op",
         text,
       });
+      this.toolbarControlButtons.push(el);
       el.setAttribute("aria-label", title);
       el.setAttribute("title", title);
       el.addEventListener("click", () => {
@@ -152,9 +179,10 @@ export class GitHistoryView extends ItemView {
       return;
     }
 
-    const [commits, tips, hasDirty] = await Promise.all([
+    const [commits, localTips, remoteTips, hasDirty] = await Promise.all([
       this.plugin.gitManager.getCommitLog({ depth: 250 }),
       this.plugin.gitManager.getBranchTipsByOid(),
+      this.plugin.gitManager.getRemoteBranchTipsByOid(),
       this.plugin.gitManager.hasUncommittedChanges(),
     ]);
 
@@ -196,11 +224,19 @@ export class GitHistoryView extends ItemView {
       const meta = row.createDiv({ cls: "vault-git-history-meta" });
       meta.createSpan({ cls: "vault-git-history-hash", text: c.shortOid });
 
-      const branches = tips.get(c.oid);
-      if (branches && branches.length > 0) {
+      const locals = localTips.get(c.oid);
+      const remotes = remoteTips.get(c.oid);
+      if ((locals && locals.length > 0) || (remotes && remotes.length > 0)) {
         const tags = meta.createSpan({ cls: "vault-git-history-tags" });
-        for (const b of branches) {
-          tags.createSpan({ cls: "vault-git-history-branch-pill", text: b });
+        if (locals) {
+          for (const b of locals) {
+            tags.createSpan({ cls: "vault-git-history-branch-pill vault-git-history-branch-pill-local", text: b });
+          }
+        }
+        if (remotes) {
+          for (const b of remotes) {
+            tags.createSpan({ cls: "vault-git-history-branch-pill vault-git-history-branch-pill-remote", text: b });
+          }
         }
       }
 
@@ -235,6 +271,8 @@ export class GitHistoryView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    this.toolbarStatusEl = undefined;
+    this.toolbarControlButtons = [];
     this.contentEl.empty();
     this.bodyEl = undefined;
   }

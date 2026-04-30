@@ -327,6 +327,26 @@ export default class ObsidianGitPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
+  /** Show busy state on open Git history views (toolbar status + disabled buttons). */
+  setGitHistoryViewBusy(message: string | null): void {
+    let leaves = this.app.workspace.getLeavesOfType(GIT_HISTORY_VIEW_TYPE);
+    if (leaves.length === 0) {
+      const found: WorkspaceLeaf[] = [];
+      this.app.workspace.iterateAllLeaves((leaf) => {
+        if (leaf.view.getViewType?.() === GIT_HISTORY_VIEW_TYPE) {
+          found.push(leaf);
+        }
+      });
+      leaves = found;
+    }
+    for (const leaf of leaves) {
+      const view = leaf.view;
+      if (view instanceof GitHistoryView) {
+        view.setToolbarBusy(message);
+      }
+    }
+  }
+
   /** Reload open Git history views after repo-changing operations. */
   async refreshGitHistoryView(): Promise<void> {
     await new Promise<void>((resolve) => {
@@ -352,49 +372,72 @@ export default class ObsidianGitPlugin extends Plugin {
 
   /** Git history view toolbar: same behavior as the command palette entries. */
   async runHistoryToolbarFetch(): Promise<void> {
-    await this.runGitOp("Fetch", async () => {
-      await this.gitManager.fetch();
-      new Notice("Git: fetch complete.");
-      await this.refreshStatus();
-      await this.refreshGitHistoryView();
-    });
+    this.setGitHistoryViewBusy("Fetching from remote…");
+    try {
+      await this.runGitOp("Fetch", async () => {
+        await this.gitManager.fetch();
+        new Notice("Git: fetch complete.");
+        await this.refreshStatus();
+        await this.refreshGitHistoryView();
+      });
+    } finally {
+      this.setGitHistoryViewBusy(null);
+    }
   }
 
   /** Stage all changes (incl. new / modified / deleted) and commit with the template message. */
   async runHistoryToolbarCommitAll(): Promise<void> {
-    await this.runGitOp("Stage all & commit", async () => {
-      const msg = this.buildCommitMessage();
-      await this.gitManager.stageAllAndCommit(msg);
-      new Notice(`Git: staged & committed — "${msg}"`);
-      if (this.settings.autoPushOnCommit) {
-        if (this.settings.pullBeforePush) {
-          await this.gitManager.pull();
+    this.setGitHistoryViewBusy("Staging and committing…");
+    try {
+      await this.runGitOp("Stage all & commit", async () => {
+        const msg = this.buildCommitMessage();
+        await this.gitManager.stageAllAndCommit(msg);
+        new Notice(`Git: staged & committed — "${msg}"`);
+        if (this.settings.autoPushOnCommit) {
+          if (this.settings.pullBeforePush) {
+            this.setGitHistoryViewBusy("Pulling…");
+            await this.gitManager.pull();
+          }
+          this.setGitHistoryViewBusy("Pushing…");
+          await this.push();
         }
-        await this.push();
-      }
-      await this.refreshStatus();
-      await this.refreshGitHistoryView();
-    });
+        await this.refreshStatus();
+        await this.refreshGitHistoryView();
+      });
+    } finally {
+      this.setGitHistoryViewBusy(null);
+    }
   }
 
   async runHistoryToolbarRebase(): Promise<void> {
-    await this.runGitOp("Rebase", async () => {
-      await this.gitManager.rebase();
-      new Notice("Git: rebase complete.");
-      await this.refreshStatus();
-      await this.refreshGitHistoryView();
-    });
+    this.setGitHistoryViewBusy("Rebasing…");
+    try {
+      await this.runGitOp("Rebase", async () => {
+        await this.gitManager.rebase();
+        new Notice("Git: rebase complete.");
+        await this.refreshStatus();
+        await this.refreshGitHistoryView();
+      });
+    } finally {
+      this.setGitHistoryViewBusy(null);
+    }
   }
 
   async runHistoryToolbarPush(): Promise<void> {
-    await this.runGitOp("Push", async () => {
-      if (this.settings.pullBeforePush) {
-        await this.gitManager.pull();
-      }
-      await this.push();
-      await this.refreshStatus();
-      await this.refreshGitHistoryView();
-    });
+    this.setGitHistoryViewBusy(this.settings.pullBeforePush ? "Pulling, then pushing…" : "Pushing…");
+    try {
+      await this.runGitOp("Push", async () => {
+        if (this.settings.pullBeforePush) {
+          await this.gitManager.pull();
+          this.setGitHistoryViewBusy("Pushing…");
+        }
+        await this.push();
+        await this.refreshStatus();
+        await this.refreshGitHistoryView();
+      });
+    } finally {
+      this.setGitHistoryViewBusy(null);
+    }
   }
 
   // -------------------------------------------------------------------------

@@ -497,6 +497,15 @@ export class GitManager {
     };
   }
 
+  /**
+   * Paths under `.git/` are the repository metadata (objects, refs, …), not project files.
+   * WORKDIR walks the filesystem and would otherwise report them as untracked vs HEAD.
+   */
+  private isUnderGitMetadataDir(filepath: string): boolean {
+    const n = filepath.replace(/\\/g, "/").replace(/^\.\//, "");
+    return n === ".git" || n.startsWith(".git/");
+  }
+
   /** Join vault root with repo-relative path (works with desktop absolute base or mobile ""). */
   private vaultJoin(filepath: string): string {
     const fp = filepath.replace(/\\/g, "/");
@@ -565,6 +574,7 @@ export class GitManager {
       trees: [TREE({ ref: "HEAD" }), WORKDIR(), STAGE()],
       map: async (filepath: string, [headEn, workEn, stageEn]: [any, any, any]) => {
         if (filepath === ".") return;
+        if (this.isUnderGitMetadataDir(filepath)) return;
         const th = headEn ? await headEn.type() : null;
         const tw = workEn ? await workEn.type() : null;
         const ts = stageEn ? await stageEn.type() : null;
@@ -683,6 +693,7 @@ export class GitManager {
     const matrix = await git.statusMatrix({ fs: this.fs, dir: this.vaultPath });
     for (const [filepath, head, workdir, stage] of matrix) {
       const fp = filepath as string;
+      if (this.isUnderGitMetadataDir(fp)) continue;
       if (head !== 0 || workdir !== 2) continue;
       if (stage !== 0 && stage !== 2) continue;
       const buf = await this.readVaultFileBytes(fp);

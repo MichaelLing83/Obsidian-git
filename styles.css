@@ -8,11 +8,32 @@
 
 .vault-git-history-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.vault-git-history-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vault-git-history-toolbar-row-top {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.vault-git-history-toolbar-row-actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.vault-git-history-actions-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-right: 4px;
 }
 
 .vault-git-history-title {
@@ -24,6 +45,13 @@
   padding: 4px 12px;
   border-radius: var(--radius-s);
   cursor: pointer;
+}
+
+.vault-git-history-op {
+  padding: 4px 10px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
 }
 
 .vault-git-history-scroll {

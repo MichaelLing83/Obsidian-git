@@ -327,6 +327,62 @@ export default class ObsidianGitPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
+  /** Reload open Git history views after repo-changing operations. */
+  async refreshGitHistoryView(): Promise<void> {
+    const leaves = this.app.workspace.getLeavesOfType(GIT_HISTORY_VIEW_TYPE);
+    for (const leaf of leaves) {
+      const v = leaf.view;
+      if (v instanceof GitHistoryView) await v.reload();
+    }
+  }
+
+  /** Git history view toolbar: same behavior as the command palette entries. */
+  async runHistoryToolbarFetch(): Promise<void> {
+    await this.runGitOp("Fetch", async () => {
+      await this.gitManager.fetch();
+      new Notice("Git: fetch complete.");
+      await this.refreshStatus();
+      await this.refreshGitHistoryView();
+    });
+  }
+
+  /** Stage all changes (incl. new / modified / deleted) and commit with the template message. */
+  async runHistoryToolbarCommitAll(): Promise<void> {
+    await this.runGitOp("Stage all & commit", async () => {
+      const msg = this.buildCommitMessage();
+      await this.gitManager.stageAllAndCommit(msg);
+      new Notice(`Git: staged & committed — "${msg}"`);
+      if (this.settings.autoPushOnCommit) {
+        if (this.settings.pullBeforePush) {
+          await this.gitManager.pull();
+        }
+        await this.push();
+      }
+      await this.refreshStatus();
+      await this.refreshGitHistoryView();
+    });
+  }
+
+  async runHistoryToolbarRebase(): Promise<void> {
+    await this.runGitOp("Rebase", async () => {
+      await this.gitManager.rebase();
+      new Notice("Git: rebase complete.");
+      await this.refreshStatus();
+      await this.refreshGitHistoryView();
+    });
+  }
+
+  async runHistoryToolbarPush(): Promise<void> {
+    await this.runGitOp("Push", async () => {
+      if (this.settings.pullBeforePush) {
+        await this.gitManager.pull();
+      }
+      await this.push();
+      await this.refreshStatus();
+      await this.refreshGitHistoryView();
+    });
+  }
+
   // -------------------------------------------------------------------------
   // Auto-commit
   // -------------------------------------------------------------------------

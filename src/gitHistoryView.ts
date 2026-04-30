@@ -99,14 +99,39 @@ export class GitHistoryView extends ItemView {
     this.contentEl.empty();
     this.contentEl.addClass("vault-git-history-root");
     const toolbar = this.contentEl.createDiv({ cls: "vault-git-history-toolbar" });
-    toolbar.createSpan({ cls: "vault-git-history-title", text: "Commit graph" });
-    const btn = toolbar.createEl("button", {
+    const rowTop = toolbar.createDiv({ cls: "vault-git-history-toolbar-row vault-git-history-toolbar-row-top" });
+    rowTop.createSpan({ cls: "vault-git-history-title", text: "Commit graph" });
+    const btn = rowTop.createEl("button", {
       cls: "vault-git-history-refresh",
       text: "Refresh",
     });
     btn.addEventListener("click", () => {
       void this.reload();
     });
+
+    const rowOps = toolbar.createDiv({
+      cls: "vault-git-history-toolbar-row vault-git-history-toolbar-row-actions",
+    });
+    rowOps.createSpan({ cls: "vault-git-history-actions-label", text: "Actions:" });
+    const mkOp = (text: string, title: string, run: () => Promise<void>) => {
+      const el = rowOps.createEl("button", {
+        cls: "vault-git-history-op",
+        text,
+      });
+      el.setAttribute("aria-label", title);
+      el.setAttribute("title", title);
+      el.addEventListener("click", () => {
+        void run();
+      });
+    };
+    mkOp("Fetch", "Fetch from remote", () => this.plugin.runHistoryToolbarFetch());
+    mkOp(
+      "Commit all",
+      "Stage all changes (new, modified, deleted) and commit using your message template",
+      () => this.plugin.runHistoryToolbarCommitAll()
+    );
+    mkOp("Rebase", "Rebase onto remote branch (same as command palette)", () => this.plugin.runHistoryToolbarRebase());
+    mkOp("Push", "Pull first if enabled in settings, then push to remote", () => this.plugin.runHistoryToolbarPush());
 
     this.bodyEl = this.contentEl.createDiv({ cls: "vault-git-history-scroll" });
     await this.reload();

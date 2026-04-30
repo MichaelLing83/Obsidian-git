@@ -62,6 +62,60 @@ export interface ObsidianGitSettings {
   debugLogEnabled: boolean;
 }
 
+/** View type id for the Git history / graph pane */
+export const GIT_HISTORY_VIEW_TYPE = "vault-git-sync-git-history";
+
+/** One commit row for history / graph UI */
+export interface GitLogCommit {
+  oid: string;
+  shortOid: string;
+  message: string;
+  messageTitle: string;
+  authorName: string;
+  authorEmail: string;
+  /** UTC milliseconds */
+  committedDate: number;
+  parents: string[];
+}
+
+/** Per-file diff stats for history / working tree detail */
+export interface GitChangeFileStat {
+  path: string;
+  status: "modified" | "added" | "deleted";
+  additions: number;
+  deletions: number;
+  binary?: boolean;
+}
+
+export interface GitDiffSummary {
+  additions: number;
+  deletions: number;
+  filesChanged: number;
+}
+
+/** Uncommitted changes detail (HEAD vs working tree) */
+export interface WorkingTreeDetail {
+  headOid: string | null;
+  branch: string | null;
+  files: GitChangeFileStat[];
+  summary: GitDiffSummary;
+}
+
+/** Single commit vs first parent (or root vs empty) */
+export interface CommitDetailInfo {
+  oid: string;
+  shortOid: string;
+  message: string;
+  authorName: string;
+  authorEmail: string;
+  committedDate: number;
+  parents: string[];
+  compareOid: string | null;
+  compareLabel: string;
+  files: GitChangeFileStat[];
+  summary: GitDiffSummary;
+}
+
 export const DEFAULT_SETTINGS: ObsidianGitSettings = {
   remoteUrl: "",
   remoteName: "origin",

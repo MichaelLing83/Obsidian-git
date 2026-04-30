@@ -7,10 +7,20 @@
  */
 
 import { DataAdapter, Platform } from "obsidian";
-import { ObsidianGitSettings, GitStatus } from "./types";
-import { ObsidianFsAdapter } from "./fsAdapter";
+import { STAGE, TREE, WORKDIR, walk } from "isomorphic-git";
 import * as git from "isomorphic-git";
+import { lineDiffStats, isProbablyBinaryUtf8 } from "./diffLineStats";
 import obsidianHttpTransport from "./httpTransport";
+import { ObsidianFsAdapter } from "./fsAdapter";
+import type {
+  CommitDetailInfo,
+  GitChangeFileStat,
+  GitDiffSummary,
+  GitLogCommit,
+  ObsidianGitSettings,
+  WorkingTreeDetail,
+  GitStatus,
+} from "./types";
 
 export class GitManager {
   private vaultPath: string;
@@ -314,6 +324,65 @@ export class GitManager {
     }));
   }
 
+  /**
+   * Walk commit history from ref (default HEAD), newest first.
+   */
+  async getCommitLog(options?: { depth?: number; ref?: string }): Promise<GitLogCommit[]> {
+    const depth = options?.depth ?? 200;
+    const ref = options?.ref ?? "HEAD";
+    const isRepo = await this.isGitRepository();
+    if (!isRepo) return [];
+    try {
+      const rows = await git.log({ fs: this.fs, dir: this.vaultPath, ref, depth });
+      return rows.map((r) => {
+        const msg = r.commit.message.trim();
+        const title = msg.split("\n")[0]?.trim() ?? "";
+        return {
+          oid: r.oid,
+          shortOid: r.oid.slice(0, 7),
+          message: msg,
+          messageTitle: title || msg.slice(0, 80),
+          authorName: r.commit.author.name,
+          authorEmail: r.commit.author.email,
+          committedDate: r.commit.committer.timestamp * 1000,
+          parents: [...(r.commit.parent ?? [])],
+        };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Map commit oid → local branch names whose tips point at that commit.
+   */
+  async getBranchTipsByOid(): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    const isRepo = await this.isGitRepository();
+    if (!isRepo) return map;
+    let names: string[] = [];
+    try {
+      names = await git.listBranches({ fs: this.fs, dir: this.vaultPath });
+    } catch {
+      return map;
+    }
+    for (const name of names) {
+      try {
+        const oid = await git.resolveRef({
+          fs: this.fs,
+          dir: this.vaultPath,
+          ref: `refs/heads/${name}`,
+        });
+        const list = map.get(oid) ?? [];
+        list.push(name);
+        map.set(oid, list);
+      } catch {
+        /* skip */
+      }
+    }
+    return map;
+  }
+
   async getLastCommitHash(): Promise<string> {
     try {
       const sha = await git.resolveRef({ fs: this.fs, dir: this.vaultPath, ref: "HEAD" });
@@ -340,6 +409,294 @@ export class GitManager {
       await git.branch({ fs: this.fs, dir: this.vaultPath, ref: branch });
     }
     await git.checkout({ fs: this.fs, dir: this.vaultPath, ref: branch });
+  }
+
+  /** True if working tree has staged/unstaged/untracked/conflicted changes. */
+  async hasUncommittedChanges(): Promise<boolean> {
+    const s = await this.status();
+    return (
+      s.staged.length +
+        s.modified.length +
+        s.not_added.length +
+        s.deleted.length +
+        s.renamed.length +
+        s.conflicted.length >
+      0
+    );
+  }
+
+  /** HEAD vs working tree (like git status + diff --stat). */
+  async getWorkingTreeDiffDetail(): Promise<WorkingTreeDetail | null> {
+    const isRepo = await this.isGitRepository();
+    if (!isRepo) return null;
+
+    let headOid: string | null = null;
+    try {
+      headOid = await git.resolveRef({ fs: this.fs, dir: this.vaultPath, ref: "HEAD" });
+    } catch {
+      const files = await this.collectWorkingTreeFilesWithoutHead();
+      return {
+        headOid: null,
+        branch: (await this.getCurrentBranch()) || null,
+        files,
+        summary: this.summarizeFiles(files),
+      };
+    }
+
+    const files = await this.walkHeadVsWorkdir();
+    return {
+      headOid,
+      branch: (await this.getCurrentBranch()) || null,
+      files,
+      summary: this.summarizeFiles(files),
+    };
+  }
+
+  /** Commit vs first parent (merge commits: diff vs first parent only). */
+  async getCommitDiffDetail(oid: string): Promise<CommitDetailInfo | null> {
+    const isRepo = await this.isGitRepository();
+    if (!isRepo) return null;
+
+    let commit: Awaited<ReturnType<typeof git.readCommit>>;
+    try {
+      commit = await git.readCommit({ fs: this.fs, dir: this.vaultPath, oid });
+    } catch {
+      return null;
+    }
+
+    const parents = [...(commit.commit.parent ?? [])];
+    let files: GitChangeFileStat[];
+    let compareOid: string | null = parents[0] ?? null;
+    let compareLabel: string;
+
+    if (parents.length === 0) {
+      files = await this.walkInitialCommit(oid);
+      compareOid = null;
+      compareLabel = "empty tree (initial commit)";
+    } else {
+      files = await this.walkTwoTrees(parents[0], oid);
+      compareLabel = `first parent ${parents[0].slice(0, 7)}`;
+      if (parents.length > 1) {
+        compareLabel += ` (+${parents.length - 1} merge parent${parents.length > 2 ? "s" : ""})`;
+      }
+    }
+
+    const msg = commit.commit.message.trim();
+    return {
+      oid,
+      shortOid: oid.slice(0, 7),
+      message: msg,
+      authorName: commit.commit.author.name,
+      authorEmail: commit.commit.author.email,
+      committedDate: commit.commit.committer.timestamp * 1000,
+      parents,
+      compareOid,
+      compareLabel,
+      files,
+      summary: this.summarizeFiles(files),
+    };
+  }
+
+  /** Join vault root with repo-relative path (works with desktop absolute base or mobile ""). */
+  private vaultJoin(filepath: string): string {
+    const fp = filepath.replace(/\\/g, "/");
+    if (!this.vaultPath) return fp;
+    const base = this.vaultPath.replace(/\\/g, "/").replace(/\/$/, "");
+    return `${base}/${fp.replace(/^\//, "")}`;
+  }
+
+  private summarizeFiles(files: GitChangeFileStat[]): GitDiffSummary {
+    let additions = 0;
+    let deletions = 0;
+    for (const f of files) {
+      additions += f.additions;
+      deletions += f.deletions;
+    }
+    return { additions, deletions, filesChanged: files.length };
+  }
+
+  private async readVaultFileBytes(filepath: string): Promise<Uint8Array | null> {
+    try {
+      const base = this.vaultJoin(filepath);
+      const raw = await this.fs.promises.readFile(base);
+      if (raw instanceof Uint8Array) return raw;
+      if (typeof raw === "string") return new TextEncoder().encode(raw);
+      return new Uint8Array(raw as ArrayBuffer);
+    } catch {
+      return null;
+    }
+  }
+
+  private diffStatFromBytes(
+    oldB: Uint8Array | null,
+    newB: Uint8Array | null
+  ): { additions: number; deletions: number; binary: boolean } {
+    const oldBuf = oldB ?? new Uint8Array();
+    const newBuf = newB ?? new Uint8Array();
+    if (isProbablyBinaryUtf8(oldBuf) || isProbablyBinaryUtf8(newBuf)) {
+      return {
+        additions: newBuf.byteLength ? 1 : 0,
+        deletions: oldBuf.byteLength ? 1 : 0,
+        binary: true,
+      };
+    }
+    const oldStr = new TextDecoder("utf-8").decode(oldBuf);
+    const newStr = new TextDecoder("utf-8").decode(newBuf);
+    const { additions, deletions } = lineDiffStats(oldStr, newStr);
+    return { additions, deletions, binary: false };
+  }
+
+  private async entryBlobBytes(entry: any): Promise<Uint8Array | null> {
+    if (!entry) return null;
+    if ((await entry.type()) !== "blob") return null;
+    const c = await entry.content();
+    if (c == null) return new Uint8Array();
+    if (c instanceof Uint8Array) return c;
+    if (typeof c === "string") return new TextEncoder().encode(c);
+    return new Uint8Array(c as ArrayBuffer);
+  }
+
+  private async walkHeadVsWorkdir(): Promise<GitChangeFileStat[]> {
+    const files: GitChangeFileStat[] = [];
+    const dir = this.vaultPath;
+    await walk({
+      fs: this.fs,
+      dir,
+      trees: [TREE({ ref: "HEAD" }), WORKDIR(), STAGE()],
+      map: async (filepath: string, [headEn, workEn, stageEn]: [any, any, any]) => {
+        if (filepath === ".") return;
+        const th = headEn ? await headEn.type() : null;
+        const tw = workEn ? await workEn.type() : null;
+        const ts = stageEn ? await stageEn.type() : null;
+        if (th === "tree" || tw === "tree" || ts === "tree") return;
+
+        const oidHead = headEn ? await headEn.oid() : null;
+        const oidWork = workEn ? await workEn.oid() : null;
+
+        // Same rule as git.statusMatrix({ ignored: false }): skip paths only in the
+        // working tree (not in HEAD, not staged) that match .gitignore / exclude.
+        if (!headEn && !stageEn && workEn) {
+          try {
+            if (await git.isIgnored({ fs: this.fs, dir: this.vaultPath, filepath })) {
+              return;
+            }
+          } catch {
+            /* treat as not ignored if helper fails */
+          }
+        }
+
+        if (oidHead === oidWork) return;
+
+        let status: GitChangeFileStat["status"];
+        if (!oidHead && oidWork) status = "added";
+        else if (oidHead && !oidWork) status = "deleted";
+        else status = "modified";
+
+        const oldBuf = await this.entryBlobBytes(headEn);
+        const newBuf = await this.entryBlobBytes(workEn);
+        const stat = this.diffStatFromBytes(oldBuf, newBuf);
+        files.push({
+          path: filepath,
+          status,
+          additions: stat.additions,
+          deletions: stat.deletions,
+          ...(stat.binary ? { binary: true } : {}),
+        });
+      },
+    });
+    return files.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  private async walkTwoTrees(parentOid: string, commitOid: string): Promise<GitChangeFileStat[]> {
+    const files: GitChangeFileStat[] = [];
+    await walk({
+      fs: this.fs,
+      dir: this.vaultPath,
+      trees: [TREE({ ref: parentOid }), TREE({ ref: commitOid })],
+      map: async (filepath: string, [A, B]: [any, any]) => {
+        if (filepath === ".") return;
+        const ta = A ? await A.type() : null;
+        const tb = B ? await B.type() : null;
+        if (ta === "tree" || tb === "tree") return;
+
+        const oidA = A ? await A.oid() : null;
+        const oidB = B ? await B.oid() : null;
+        if (oidA === oidB) return;
+
+        let status: GitChangeFileStat["status"];
+        if (!oidA && oidB) status = "added";
+        else if (oidA && !oidB) status = "deleted";
+        else status = "modified";
+
+        let oldBuf = await this.entryBlobBytes(A);
+        let newBuf = await this.entryBlobBytes(B);
+        if (!oldBuf && oidA) {
+          const { blob } = await git.readBlob({ fs: this.fs, dir: this.vaultPath, oid: oidA });
+          oldBuf = blob instanceof Uint8Array ? blob : new Uint8Array(blob as ArrayBuffer);
+        }
+        if (!newBuf && oidB) {
+          const { blob } = await git.readBlob({ fs: this.fs, dir: this.vaultPath, oid: oidB });
+          newBuf = blob instanceof Uint8Array ? blob : new Uint8Array(blob as ArrayBuffer);
+        }
+
+        const stat = this.diffStatFromBytes(oldBuf, newBuf);
+        files.push({
+          path: filepath,
+          status,
+          additions: stat.additions,
+          deletions: stat.deletions,
+          ...(stat.binary ? { binary: true } : {}),
+        });
+      },
+    });
+    return files.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  private async walkInitialCommit(commitOid: string): Promise<GitChangeFileStat[]> {
+    const files: GitChangeFileStat[] = [];
+    await walk({
+      fs: this.fs,
+      dir: this.vaultPath,
+      trees: [TREE({ ref: commitOid })],
+      map: async (filepath: string, [E]: [any]) => {
+        if (filepath === ".") return;
+        if ((await E.type()) === "tree") return;
+        const oid = await E.oid();
+        const { blob } = await git.readBlob({ fs: this.fs, dir: this.vaultPath, oid });
+        const buf = blob instanceof Uint8Array ? blob : new Uint8Array(blob as ArrayBuffer);
+        const stat = this.diffStatFromBytes(null, buf);
+        files.push({
+          path: filepath,
+          status: "added",
+          additions: stat.additions,
+          deletions: 0,
+          ...(stat.binary ? { binary: true } : {}),
+        });
+      },
+    });
+    return files.sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  /** Repo with no HEAD commit: approximate stats from working tree only. */
+  private async collectWorkingTreeFilesWithoutHead(): Promise<GitChangeFileStat[]> {
+    const files: GitChangeFileStat[] = [];
+    const matrix = await git.statusMatrix({ fs: this.fs, dir: this.vaultPath });
+    for (const [filepath, head, workdir, stage] of matrix) {
+      const fp = filepath as string;
+      if (head !== 0 || workdir !== 2) continue;
+      if (stage !== 0 && stage !== 2) continue;
+      const buf = await this.readVaultFileBytes(fp);
+      if (!buf) continue;
+      const stat = this.diffStatFromBytes(null, buf);
+      files.push({
+        path: fp,
+        status: "added",
+        additions: stat.additions,
+        deletions: 0,
+        ...(stat.binary ? { binary: true } : {}),
+      });
+    }
+    return files.sort((a, b) => a.path.localeCompare(b.path));
   }
 
   private async computeStatus(): Promise<GitStatus> {

@@ -1,9 +1,10 @@
 import { Notice, Platform, Plugin, moment } from "obsidian";
 import { Buffer as BufferPolyfill } from "buffer";
 import { expandCommitMessageTemplate } from "./commitMessage";
+import { GitHistoryView } from "./gitHistoryView";
 import { GitManager } from "./gitManager";
 import { ObsidianGitSettingTab } from "./settings";
-import { DEFAULT_SETTINGS, GitStatus, ObsidianGitSettings } from "./types";
+import { DEFAULT_SETTINGS, GIT_HISTORY_VIEW_TYPE, GitStatus, ObsidianGitSettings } from "./types";
 
 // Android WebView may not expose a global Buffer symbol, but isomorphic-git
 // and its internals rely on it in multiple code paths (pack/index handling).
@@ -18,6 +19,7 @@ export default class ObsidianGitPlugin extends Plugin {
 
   private statusBarItem: HTMLElement | null = null;
   private syncRibbonEl: HTMLElement | null = null;
+  private historyRibbonEl: HTMLElement | null = null;
   private autoCommitIntervalId: number | null = null;
   private statusRefreshIntervalId: number | null = null;
 
@@ -42,6 +44,8 @@ export default class ObsidianGitPlugin extends Plugin {
 
     this.addSettingTab(new ObsidianGitSettingTab(this.app, this));
 
+    this.registerView(GIT_HISTORY_VIEW_TYPE, (leaf) => new GitHistoryView(leaf, this));
+
     this.registerCommands();
     this.registerRibbon();
 
@@ -60,6 +64,7 @@ export default class ObsidianGitPlugin extends Plugin {
   onunload(): void {
     this.clearAutoCommit();
     this.clearStatusRefresh();
+    this.app.workspace.detachLeavesOfType(GIT_HISTORY_VIEW_TYPE);
   }
 
   // -------------------------------------------------------------------------
@@ -258,6 +263,15 @@ export default class ObsidianGitPlugin extends Plugin {
       },
     });
 
+    // --- Git history (graph view) ---
+    this.addCommand({
+      id: "git-open-history",
+      name: "Open Git commit graph",
+      callback: async () => {
+        await this.openGitHistoryView();
+      },
+    });
+
     // --- Backup (stage + commit + push) ---
     this.addCommand({
       id: "git-backup",
@@ -289,6 +303,28 @@ export default class ObsidianGitPlugin extends Plugin {
       }
     );
     this.syncRibbonEl.addClass("obsidian-git-sync-ribbon");
+
+    this.historyRibbonEl = this.addRibbonIcon("git-branch", "Git commit graph", () => {
+      void this.openGitHistoryView();
+    });
+    this.historyRibbonEl.addClass("obsidian-git-sync-ribbon-history");
+  }
+
+  /** Open or focus the Git history view (commit graph). */
+  async openGitHistoryView(): Promise<void> {
+    const leaves = this.app.workspace.getLeavesOfType(GIT_HISTORY_VIEW_TYPE);
+    if (leaves.length > 0) {
+      const leaf = leaves[0];
+      const view = leaf.view;
+      if (view instanceof GitHistoryView) {
+        await view.reload();
+      }
+      this.app.workspace.revealLeaf(leaf);
+      return;
+    }
+    const leaf = this.app.workspace.getLeaf(true);
+    await leaf.setViewState({ type: GIT_HISTORY_VIEW_TYPE, active: true });
+    this.app.workspace.revealLeaf(leaf);
   }
 
   // -------------------------------------------------------------------------

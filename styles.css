@@ -1,0 +1,270 @@
+/* Git history / graph view */
+
+.vault-git-history-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.vault-git-history-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.vault-git-history-title {
+  font-weight: 600;
+  font-size: var(--font-ui-medium);
+}
+
+.vault-git-history-refresh {
+  padding: 4px 12px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.vault-git-history-scroll {
+  overflow: auto;
+  flex: 1;
+  min-height: 120px;
+  padding: 8px 0;
+}
+
+.vault-git-history-empty {
+  padding: 16px 12px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+}
+
+.vault-git-history-rows-wrap {
+  padding: 0 8px;
+}
+
+.vault-git-history-rows-inner {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.vault-git-history-svg {
+  flex-shrink: 0;
+}
+
+.vault-git-history-edge {
+  stroke: var(--background-modifier-border);
+  stroke-width: 2;
+}
+
+.vault-git-history-node {
+  fill: var(--interactive-accent);
+}
+
+.vault-git-history-node-merge {
+  fill: var(--background-primary);
+  stroke: var(--interactive-accent);
+  stroke-width: 2;
+}
+
+.vault-git-history-text-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.vault-git-history-row {
+  min-height: 38px;
+  padding: 4px 8px 6px 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  box-sizing: border-box;
+}
+
+.vault-git-history-row:last-child {
+  border-bottom: none;
+}
+
+.vault-git-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.vault-git-history-hash {
+  font-family: var(--font-monospace);
+  font-size: 0.85em;
+}
+
+.vault-git-history-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.vault-git-history-branch-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: var(--radius-s);
+  background: var(--background-modifier-hover);
+  color: var(--text-accent);
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+.vault-git-history-date {
+  margin-left: auto;
+}
+
+.vault-git-history-subject {
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.vault-git-history-author {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.vault-git-history-row-clickable {
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+
+.vault-git-history-row-clickable:hover {
+  background: var(--background-modifier-hover);
+}
+
+.vault-git-history-row-uncommitted {
+  border-left: 3px solid var(--interactive-accent);
+  padding-left: 10px;
+}
+
+.vault-git-history-uncommitted-label {
+  font-weight: 600;
+  font-size: var(--font-ui-small);
+  color: var(--interactive-accent);
+}
+
+.vault-git-history-subject-muted {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.vault-git-history-edge-working {
+  stroke-dasharray: 4 3;
+  opacity: 0.85;
+}
+
+.vault-git-history-node-working {
+  fill: var(--background-primary);
+  stroke: var(--interactive-accent);
+  stroke-width: 2;
+}
+
+/* Git detail modal */
+
+.vault-git-detail-modal {
+  padding: 0 4px;
+}
+
+.vault-git-detail-h2 {
+  margin: 0 0 8px 0;
+  font-size: var(--font-ui-large);
+}
+
+.vault-git-detail-sub,
+.vault-git-detail-meta {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  line-height: 1.45;
+}
+
+.vault-git-detail-branch {
+  font-weight: 500;
+}
+
+.vault-git-detail-author {
+  margin-top: 4px;
+}
+
+.vault-git-detail-compare {
+  margin-top: 6px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+}
+
+.vault-git-detail-message {
+  font-size: var(--font-ui-smaller);
+  white-space: pre-wrap;
+  max-height: 160px;
+  overflow: auto;
+  padding: 8px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+  margin-bottom: 12px;
+}
+
+.vault-git-detail-summary {
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.vault-git-detail-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.vault-git-detail-table-wrap {
+  overflow: auto;
+  max-height: min(360px, 50vh);
+}
+
+.vault-git-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-ui-smaller);
+}
+
+.vault-git-detail-table th,
+.vault-git-detail-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.vault-git-detail-table th {
+  position: sticky;
+  top: 0;
+  background: var(--background-primary);
+  font-weight: 600;
+}
+
+.vault-git-detail-path {
+  font-family: var(--font-monospace);
+  word-break: break-all;
+}
+
+.vault-git-detail-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.vault-git-detail-add {
+  color: var(--color-green);
+}
+
+.vault-git-detail-del {
+  color: var(--color-red);
+}

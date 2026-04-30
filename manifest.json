@@ -1,7 +1,7 @@
 {
   "id": "vault-git-sync",
   "name": "Vault Git Sync",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "minAppVersion": "1.4.0",
   "description": "Perform git operations (add, commit, push, fetch, pull, rebase) on your vault and configure remote repository settings.",
   "author": "MichaelLing83",

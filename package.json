@@ -1,6 +1,6 @@
 {
   "name": "vault-git-sync",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Vault Git Sync plugin for Obsidian to perform git operations on your vault",
   "main": "main.js",
   "scripts": {
@@ -19,6 +19,7 @@
   "author": "MichaelLing83",
   "license": "MIT",
   "devDependencies": {
+    "@types/diff": "^7.0.2",
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
@@ -32,6 +33,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "diff": "^9.0.0",
     "isomorphic-git": "^1.37.5",
     "simple-git": "^3.32.3"
   }

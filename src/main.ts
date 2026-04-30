@@ -1,4 +1,4 @@
-import { Notice, Platform, Plugin, moment } from "obsidian";
+import { Notice, Platform, Plugin, WorkspaceLeaf, moment } from "obsidian";
 import { Buffer as BufferPolyfill } from "buffer";
 import { expandCommitMessageTemplate } from "./commitMessage";
 import { GitHistoryView } from "./gitHistoryView";
@@ -329,10 +329,24 @@ export default class ObsidianGitPlugin extends Plugin {
 
   /** Reload open Git history views after repo-changing operations. */
   async refreshGitHistoryView(): Promise<void> {
-    const leaves = this.app.workspace.getLeavesOfType(GIT_HISTORY_VIEW_TYPE);
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 0);
+    });
+
+    let leaves = this.app.workspace.getLeavesOfType(GIT_HISTORY_VIEW_TYPE);
+    if (leaves.length === 0) {
+      const found: WorkspaceLeaf[] = [];
+      this.app.workspace.iterateAllLeaves((leaf) => {
+        if (leaf.view.getViewType?.() === GIT_HISTORY_VIEW_TYPE) {
+          found.push(leaf);
+        }
+      });
+      leaves = found;
+    }
+
     for (const leaf of leaves) {
-      const v = leaf.view;
-      if (v instanceof GitHistoryView) await v.reload();
+      const view = leaf.view as GitHistoryView;
+      await view.reload();
     }
   }
 

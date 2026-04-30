@@ -61,7 +61,7 @@ npm run build
 
 # ── commit & tag ────────────────────────────────────────────────────────────
 info "Creating commit and tag $NEW_VERSION..."
-git add package.json manifest.json versions.json main.js
+git add package.json manifest.json versions.json main.js styles.css
 git commit -m "chore: release $NEW_VERSION"
 git tag "$NEW_VERSION"
 
@@ -76,7 +76,7 @@ info "Creating $ZIP_NAME for manual installation..."
 # Build a folder inside the zip so the user can unzip directly into .obsidian/plugins/
 TMP_DIR=$(mktemp -d)
 mkdir -p "$TMP_DIR/vault-git-sync"
-cp main.js manifest.json "$TMP_DIR/vault-git-sync/"
+cp main.js manifest.json styles.css "$TMP_DIR/vault-git-sync/"
 (cd "$TMP_DIR" && zip -r - vault-git-sync) > "$ZIP_NAME"
 rm -rf "$TMP_DIR"
 
@@ -85,6 +85,7 @@ info "Creating GitHub Release..."
 gh release create "$NEW_VERSION" \
   main.js \
   manifest.json \
+  styles.css \
   "$ZIP_NAME" \
   --title "$NEW_VERSION" \
   --notes "Release $NEW_VERSION

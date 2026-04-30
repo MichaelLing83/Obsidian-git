@@ -1,5 +1,6 @@
 import { Notice, Platform, Plugin, moment } from "obsidian";
 import { Buffer as BufferPolyfill } from "buffer";
+import { expandCommitMessageTemplate } from "./commitMessage";
 import { GitManager } from "./gitManager";
 import { ObsidianGitSettingTab } from "./settings";
 import { DEFAULT_SETTINGS, GitStatus, ObsidianGitSettings } from "./types";
@@ -13,6 +14,7 @@ if (typeof (globalThis as any).Buffer === "undefined") {
 export default class ObsidianGitPlugin extends Plugin {
   settings: ObsidianGitSettings;
   gitManager: GitManager;
+  private readonly debugLogPath = ".obsidian/plugins/vault-git-sync/debug.log";
 
   private statusBarItem: HTMLElement | null = null;
   private syncRibbonEl: HTMLElement | null = null;
@@ -27,6 +29,7 @@ export default class ObsidianGitPlugin extends Plugin {
     await this.loadSettings();
 
     console.info(`[Obsidian Git] loading plugin v${this.manifest.version}`);
+    await this.appendDebugLog(`loading plugin v${this.manifest.version}`);
 
     const adapter = this.app.vault.adapter;
     // On mobile, DataAdapter uses vault-relative paths so dir must be "".
@@ -390,9 +393,33 @@ export default class ObsidianGitPlugin extends Plugin {
   // -------------------------------------------------------------------------
 
   private buildCommitMessage(): string {
-    const template = this.settings.commitMessageTemplate || "vault backup: {{date}}";
     const date = moment().format("YYYY-MM-DD HH:mm:ss");
-    return template.replace("{{date}}", date);
+    return expandCommitMessageTemplate(this.settings.commitMessageTemplate, date);
+  }
+
+  private async appendDebugLog(message: string): Promise<void> {
+    if (!this.settings?.debugLogEnabled) {
+      return;
+    }
+
+    const line = `[${moment().format("YYYY-MM-DD HH:mm:ss")}] ${message}\n`;
+    const adapter = this.app.vault.adapter as any;
+    try {
+      if (typeof adapter.append === "function") {
+        await adapter.append(this.debugLogPath, line);
+        return;
+      }
+
+      let existing = "";
+      try {
+        existing = await adapter.read(this.debugLogPath);
+      } catch {
+        existing = "";
+      }
+      await adapter.write(this.debugLogPath, `${existing}${line}`);
+    } catch (e) {
+      console.error("[Obsidian Git] failed to write debug log", e);
+    }
   }
 
   private logStatusSnapshot(label: string, status: GitStatus): void {
@@ -562,13 +589,30 @@ export default class ObsidianGitPlugin extends Plugin {
    * Returns true on success, false on failure.
    */
   private async runGitOp(opName: string, fn: () => Promise<void>): Promise<boolean> {
+    await this.appendDebugLog(`START ${opName}`);
     try {
       await fn();
+      if (opName === "Status") {
+        const status = await this.gitManager.status();
+        await this.appendDebugLog(
+          `STATUS snapshot staged=${status.staged.length} modified=${status.modified.length} untracked=${status.not_added.length} deleted=${status.deleted.length}`
+        );
+        await this.appendDebugLog(
+          `STATUS files ${[
+            ...status.staged.map((f) => `staged:${f}`),
+            ...status.modified.map((f) => `modified:${f}`),
+            ...status.not_added.map((f) => `untracked:${f}`),
+            ...status.deleted.map((f) => `deleted:${f}`),
+          ].join(", ")}`
+        );
+      }
+      await this.appendDebugLog(`SUCCESS ${opName}`);
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       new Notice(`Git ${opName} failed:\n${msg}`, 10000);
       console.error(`[Obsidian Git] ${opName} failed:`, e);
+      await this.appendDebugLog(`FAILED ${opName}: ${msg}`);
       return false;
     }
   }

@@ -1,12 +1,15 @@
 {
   "name": "vault-git-sync",
-  "version": "1.2.2",
+  "version": "1.2.5",
   "description": "Vault Git Sync plugin for Obsidian to perform git operations on your vault",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "test:coverage": "node scripts/run-test-coverage.mjs",
+    "test:watch": "vitest"
   },
   "keywords": [
     "obsidian",
@@ -19,12 +22,14 @@
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "builtin-modules": "^3.3.0",
     "esbuild": "^0.25.0",
     "eslint": "^9.0.0",
     "obsidian": "latest",
     "tslib": "^2.6.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "isomorphic-git": "^1.37.5",

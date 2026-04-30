@@ -236,5 +236,19 @@ export class ObsidianGitSettingTab extends PluginSettingTab {
             this.plugin.updateStatusBarVisibility();
           })
       );
+
+    new Setting(containerEl)
+      .setName("Enable debug logs to file")
+      .setDesc(
+        "Write verbose operation logs to .obsidian/plugins/vault-git-sync/debug.log for troubleshooting."
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.debugLogEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings.debugLogEnabled = value;
+            await this.plugin.saveSettings();
+          })
+      );
   }
 }

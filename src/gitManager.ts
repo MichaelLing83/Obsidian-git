@@ -71,6 +71,15 @@ export class GitManager {
     return this.fsClient;
   }
 
+  private debugLog(message: string, data?: unknown): void {
+    if (!this.settings.debugLogEnabled) return;
+    if (data === undefined) {
+      console.warn(`[Obsidian Git] ${message}`);
+      return;
+    }
+    console.warn(`[Obsidian Git] ${message}`, data);
+  }
+
   private isTimeoutError(error: unknown): boolean {
     const message = error instanceof Error ? error.message : String(error);
     const m = message.toLowerCase();
@@ -87,9 +96,24 @@ export class GitManager {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await fn();
+        console.warn(`[Obsidian Git] ${opName} start`, { attempt, maxAttempts });
+        console.error(`[Obsidian Git] ${opName} start`, { attempt, maxAttempts });
+        const result = await fn();
+        console.warn(`[Obsidian Git] ${opName} success`, { attempt, maxAttempts });
+        console.error(`[Obsidian Git] ${opName} success`, { attempt, maxAttempts });
+        return result;
       } catch (error) {
         lastError = error;
+        console.warn(`[Obsidian Git] ${opName} failed`, {
+          attempt,
+          maxAttempts,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        console.error(`[Obsidian Git] ${opName} failed`, {
+          attempt,
+          maxAttempts,
+          error: error instanceof Error ? error.message : String(error),
+        });
         const isTimeout = this.isTimeoutError(error);
         if (!isTimeout || attempt >= maxAttempts) {
           break;
@@ -336,36 +360,47 @@ export class GitManager {
 
     try {
       const matrix = await git.statusMatrix({ fs: this.fs, dir: this.vaultPath });
+      this.debugLog("statusMatrix entries", { count: matrix.length });
       for (const [filepath, head, workdir, stage] of matrix) {
         if (head === 0 && workdir === 0 && stage === 0) continue;
-        if (head === 0 && workdir === 2 && stage === 0) {
+        if (head === 0 && workdir === 2 && stage !== 2) {
           not_added.push(filepath as string);
+          this.debugLog("status untracked", { filepath, head, workdir, stage });
           continue;
         }
         if (head === 0 && workdir === 2 && stage === 2) {
           staged.push(filepath as string);
+          this.debugLog("status staged-untracked", { filepath, head, workdir, stage });
           continue;
         }
         if (head === 1 && workdir === 1 && stage === 1) continue;
         if (head === 1 && workdir === 2 && stage === 1) {
           modified.push(filepath as string);
+          this.debugLog("status modified", { filepath, head, workdir, stage });
           continue;
         }
         if (head === 1 && workdir === 2 && stage === 2) {
           staged.push(filepath as string);
+          this.debugLog("status staged-modified", { filepath, head, workdir, stage });
           continue;
         }
         if (head === 1 && workdir === 0) {
           deleted.push(filepath as string);
+          this.debugLog("status deleted", { filepath, head, workdir, stage });
           continue;
         }
         if (head === 1 && workdir === 1 && stage === 0) {
           staged.push(filepath as string);
+          this.debugLog("status staged-deleted", { filepath, head, workdir, stage });
           continue;
         }
         if (stage === 3) {
           conflicted.push(filepath as string);
+          this.debugLog("status conflicted", { filepath, head, workdir, stage });
+          continue;
         }
+
+        this.debugLog("status matrix unclassified", { filepath, head, workdir, stage });
       }
     } catch {
       // empty repo

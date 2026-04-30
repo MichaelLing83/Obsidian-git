@@ -9,6 +9,9 @@ node_modules/
 # TypeScript build info
 *.tsbuildinfo
 
+# Vitest coverage output (HTML/lcov under ./coverage when reporters include them)
+coverage/
+
 # Development artifacts
 *.log
 .DS_Store

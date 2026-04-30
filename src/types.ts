@@ -57,6 +57,9 @@ export interface ObsidianGitSettings {
 
   /** Show status in the status bar */
   showStatusBar: boolean;
+
+  /** Enable verbose debug logging and persist logs to debug.log */
+  debugLogEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: ObsidianGitSettings = {
@@ -73,4 +76,5 @@ export const DEFAULT_SETTINGS: ObsidianGitSettings = {
   pullStrategy: "rebase",
   enableForceSync: false,
   showStatusBar: true,
+  debugLogEnabled: false,
 };

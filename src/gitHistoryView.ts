@@ -81,6 +81,8 @@ function createHistorySvg(commits: GitLogCommit[], workingFirst: boolean): SVGSV
 export class GitHistoryView extends ItemView {
   private toolbarStatusEl?: HTMLSpanElement;
   private toolbarControlButtons: HTMLButtonElement[] = [];
+  /** Debounce timer for reload when this tab becomes active again (onOpen does not re-run). */
+  private reloadOnActivateTimer: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: ObsidianGitPlugin) {
     super(leaf);
@@ -166,6 +168,25 @@ export class GitHistoryView extends ItemView {
 
     this.bodyEl = this.contentEl.createDiv({ cls: "vault-git-history-scroll" });
     await this.reload();
+
+    // When switching back from another tab/pane, onOpen does not run — refresh graph once.
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        if (leaf?.view === this && this.bodyEl) {
+          this.scheduleReloadOnActivate();
+        }
+      })
+    );
+  }
+
+  private scheduleReloadOnActivate(): void {
+    if (this.reloadOnActivateTimer !== null) {
+      window.clearTimeout(this.reloadOnActivateTimer);
+    }
+    this.reloadOnActivateTimer = window.setTimeout(() => {
+      this.reloadOnActivateTimer = null;
+      void this.reload();
+    }, 120);
   }
 
   private bodyEl?: HTMLDivElement;
@@ -275,6 +296,10 @@ export class GitHistoryView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    if (this.reloadOnActivateTimer !== null) {
+      window.clearTimeout(this.reloadOnActivateTimer);
+      this.reloadOnActivateTimer = null;
+    }
     this.toolbarStatusEl = undefined;
     this.toolbarControlButtons = [];
     this.contentEl.empty();

@@ -381,8 +381,28 @@ export class GitManager {
     }));
   }
 
+  private mapLogResultsToCommits(rows: Awaited<ReturnType<typeof git.log>>): GitLogCommit[] {
+    return rows.map((r) => {
+      const msg = r.commit.message.trim();
+      const title = msg.split("\n")[0]?.trim() ?? "";
+      return {
+        oid: r.oid,
+        shortOid: r.oid.slice(0, 7),
+        message: msg,
+        messageTitle: title || msg.slice(0, 80),
+        authorName: r.commit.author.name,
+        authorEmail: r.commit.author.email,
+        committedDate: r.commit.committer.timestamp * 1000,
+        parents: [...(r.commit.parent ?? [])],
+      };
+    });
+  }
+
   /**
    * Walk commit history from ref (default HEAD), newest first.
+   * When ref is HEAD, also prepends commits reachable from the configured remote-tracking
+   * branch that are not on HEAD's first-parent walk — so labels like origin/main show
+   * when local main is behind remote.
    */
   async getCommitLog(options?: { depth?: number; ref?: string }): Promise<GitLogCommit[]> {
     const depth = options?.depth ?? 200;
@@ -390,21 +410,54 @@ export class GitManager {
     const isRepo = await this.isGitRepository();
     if (!isRepo) return [];
     try {
-      const rows = await git.log({ fs: this.fs, dir: this.vaultPath, ref, depth });
-      return rows.map((r) => {
-        const msg = r.commit.message.trim();
-        const title = msg.split("\n")[0]?.trim() ?? "";
-        return {
-          oid: r.oid,
-          shortOid: r.oid.slice(0, 7),
-          message: msg,
-          messageTitle: title || msg.slice(0, 80),
-          authorName: r.commit.author.name,
-          authorEmail: r.commit.author.email,
-          committedDate: r.commit.committer.timestamp * 1000,
-          parents: [...(r.commit.parent ?? [])],
-        };
-      });
+      type LogRow = Awaited<ReturnType<typeof git.log>>[number];
+      const headRows = await git.log({ fs: this.fs, dir: this.vaultPath, ref, depth });
+
+      if (ref !== "HEAD") {
+        return this.mapLogResultsToCommits(headRows);
+      }
+
+      const { remoteName, branch } = this.settings;
+      let remoteRows: LogRow[] = [];
+      try {
+        await git.resolveRef({
+          fs: this.fs,
+          dir: this.vaultPath,
+          ref: `refs/remotes/${remoteName}/${branch}`,
+        });
+        remoteRows = await git.log({
+          fs: this.fs,
+          dir: this.vaultPath,
+          ref: `${remoteName}/${branch}`,
+          depth,
+        });
+      } catch {
+        /* no remote tracking ref */
+      }
+
+      const headOids = new Set(headRows.map((r) => r.oid));
+      const aheadFromRemote: LogRow[] = [];
+      for (const r of remoteRows) {
+        if (headOids.has(r.oid)) break;
+        aheadFromRemote.push(r);
+      }
+
+      const seen = new Set<string>();
+      const merged: LogRow[] = [];
+      for (const r of aheadFromRemote) {
+        if (merged.length >= depth) break;
+        if (seen.has(r.oid)) continue;
+        seen.add(r.oid);
+        merged.push(r);
+      }
+      for (const r of headRows) {
+        if (merged.length >= depth) break;
+        if (seen.has(r.oid)) continue;
+        seen.add(r.oid);
+        merged.push(r);
+      }
+
+      return this.mapLogResultsToCommits(merged);
     } catch {
       return [];
     }

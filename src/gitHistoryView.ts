@@ -119,7 +119,13 @@ export class GitHistoryView extends ItemView {
 
     const toolbar = this.contentEl.createDiv({ cls: "vault-git-history-toolbar" });
     const rowTop = toolbar.createDiv({ cls: "vault-git-history-toolbar-row vault-git-history-toolbar-row-top" });
-    rowTop.createSpan({ cls: "vault-git-history-title", text: "Commit graph" });
+    const titleWrap = rowTop.createDiv({ cls: "vault-git-history-title-wrap" });
+    titleWrap.createSpan({ cls: "vault-git-history-title", text: "Commit graph" });
+    const ver = titleWrap.createSpan({
+      cls: "vault-git-history-version",
+      text: `v${this.plugin.manifest.version}`,
+    });
+    ver.setAttribute("title", `Vault Git Sync ${this.plugin.manifest.version}`);
     this.toolbarStatusEl = rowTop.createSpan({ cls: "vault-git-history-toolbar-status" });
     const btn = rowTop.createEl("button", {
       cls: "vault-git-history-refresh",

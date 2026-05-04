@@ -50,9 +50,23 @@
   margin-right: 4px;
 }
 
+.vault-git-history-title-wrap {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
 .vault-git-history-title {
   font-weight: 600;
   font-size: var(--font-ui-medium);
+}
+
+.vault-git-history-version {
+  font-size: var(--font-ui-smaller);
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .vault-git-history-refresh {

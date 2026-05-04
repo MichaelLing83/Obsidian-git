@@ -68,6 +68,11 @@
   font-size: var(--font-ui-smaller);
 }
 
+.vault-git-history-op-danger {
+  border: 1px solid var(--text-error);
+  color: var(--text-error);
+}
+
 .vault-git-history-refresh:disabled,
 .vault-git-history-op:disabled {
   cursor: not-allowed;

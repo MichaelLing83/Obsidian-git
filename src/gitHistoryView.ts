@@ -141,9 +141,9 @@ export class GitHistoryView extends ItemView {
       cls: "vault-git-history-toolbar-row vault-git-history-toolbar-row-actions",
     });
     rowOps.createSpan({ cls: "vault-git-history-actions-label", text: "Actions:" });
-    const mkOp = (text: string, title: string, run: () => Promise<void>) => {
+    const mkOp = (text: string, title: string, run: () => Promise<void>, extraCls?: string) => {
       const el = rowOps.createEl("button", {
-        cls: "vault-git-history-op",
+        cls: extraCls ? `vault-git-history-op ${extraCls}` : "vault-git-history-op",
         text,
       });
       this.toolbarControlButtons.push(el);
@@ -158,6 +158,12 @@ export class GitHistoryView extends ItemView {
       "Commit all",
       "Stage all changes (new, modified, deleted) and commit locally only — no fetch, pull, rebase, or push",
       () => this.plugin.runHistoryToolbarCommitAll()
+    );
+    mkOp(
+      "Discard local",
+      "Reset tracked files to match HEAD (like git checkout / reset --hard). Staged and unstaged changes are lost. Untracked files are kept. Asks for confirmation.",
+      () => this.plugin.runHistoryToolbarDiscardLocal(),
+      "vault-git-history-op-danger"
     );
     mkOp("Rebase", "Rebase onto remote branch (same as command palette)", () => this.plugin.runHistoryToolbarRebase());
     mkOp(

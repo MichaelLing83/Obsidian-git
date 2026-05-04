@@ -231,6 +231,15 @@ export default class ObsidianGitPlugin extends Plugin {
       },
     });
 
+    // --- Discard local (reset tracked files to HEAD) ---
+    this.addCommand({
+      id: "git-discard-local",
+      name: "Discard all local changes (reset to HEAD)",
+      callback: async () => {
+        await this.runDiscardLocalChanges();
+      },
+    });
+
     // --- Init ---
     this.addCommand({
       id: "git-init",
@@ -433,6 +442,51 @@ export default class ObsidianGitPlugin extends Plugin {
         await this.refreshStatus();
         await this.refreshGitHistoryView();
       });
+    } finally {
+      this.setGitHistoryViewBusy(null);
+    }
+  }
+
+  private confirmDiscardLocalChanges(): boolean {
+    return window.confirm(
+      [
+        "Discard ALL local changes to tracked files?",
+        "Working tree and staging area will match the last commit (HEAD).",
+        "Untracked files are NOT removed.",
+        "This cannot be undone.",
+        "",
+        "Continue?",
+      ].join("\n")
+    );
+  }
+
+  private async runDiscardLocalAfterConfirm(): Promise<void> {
+    await this.runGitOp("Discard local", async () => {
+      await this.gitManager.discardWorkingTreeToHead();
+      new Notice("Git: working tree reset to HEAD.");
+      await this.refreshStatus();
+      await this.refreshGitHistoryView();
+    });
+  }
+
+  /** Command palette: reset tracked files to HEAD after confirmation. */
+  async runDiscardLocalChanges(): Promise<void> {
+    if (!this.confirmDiscardLocalChanges()) {
+      new Notice("Git: discard canceled.");
+      return;
+    }
+    await this.runDiscardLocalAfterConfirm();
+  }
+
+  /** Git history toolbar: same as command, with busy state on the graph view. */
+  async runHistoryToolbarDiscardLocal(): Promise<void> {
+    if (!this.confirmDiscardLocalChanges()) {
+      new Notice("Git: discard canceled.");
+      return;
+    }
+    this.setGitHistoryViewBusy("Resetting to HEAD…");
+    try {
+      await this.runDiscardLocalAfterConfirm();
     } finally {
       this.setGitHistoryViewBusy(null);
     }

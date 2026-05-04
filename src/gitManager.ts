@@ -516,6 +516,30 @@ export class GitManager {
     await git.checkout({ fs: this.fs, dir: this.vaultPath, ref: branch });
   }
 
+  /**
+   * Discard all local changes to tracked files: reset working tree and index to HEAD
+   * (similar to `git reset --hard` / `git checkout -- .` for tracked paths).
+   * Untracked files are left on disk (no `git clean`).
+   */
+  async discardWorkingTreeToHead(): Promise<void> {
+    const isRepo = await this.isGitRepository();
+    if (!isRepo) {
+      throw new Error("Not a git repository.");
+    }
+    try {
+      await git.resolveRef({ fs: this.fs, dir: this.vaultPath, ref: "HEAD" });
+    } catch {
+      throw new Error("No commits yet — nothing to reset to.");
+    }
+    await git.checkout({
+      fs: this.fs,
+      dir: this.vaultPath,
+      ref: "HEAD",
+      force: true,
+      noUpdateHead: true,
+    });
+  }
+
   /** True if working tree has staged/unstaged/untracked/conflicted changes. */
   async hasUncommittedChanges(): Promise<boolean> {
     const s = await this.status();
